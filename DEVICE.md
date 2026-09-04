@@ -172,6 +172,10 @@ thing to check if colours look wrong.
 `setRotation(1)` gives **landscape 320x240** with the origin at the top-left, verified
 by corner markers. This is the orientation chosen for this project.
 
+The automatic camera keeps the action toward the middle and upper part of the frame,
+so the **bottom-left corner is the least contested screen real estate** — that is
+where this project puts its mute control.
+
 ## Touch
 
 **Controller: FT6336G**, capacitive, on I2C. Capacitive was confirmed by the user
@@ -517,3 +521,88 @@ and the gain staging before the boot log was read carefully.
 
 When a subsystem degrades gracefully, its failure is invisible from the outside.
 Read the initialisation log before investigating anything downstream of it.
+
+### TFT_eSPI arc angles start at the bottom, not at the right
+
+**Symptom:** an arc drawn to sit on the right-hand side of an icon appears
+underneath it instead.
+
+`drawSmoothArc` and `drawArc` measure angles with **0 at the bottom of the circle,
+increasing anticlockwise** — 90 is left, 180 is up, 270 is right. This is not the
+mathematical convention (0 at the right, increasing anticlockwise) nor the compass
+one (0 up, increasing clockwise), and nothing in the call signature hints at it.
+
+A span of `300..60`, intended as "60 degrees either side of the right-hand
+horizontal", instead wraps through 0 and draws across the bottom. The right-hand
+side is `230..310`.
+
+Worth checking against the library source rather than assuming, since the
+convention differs between drawing libraries:
+
+```
+float sx = -sinf(startAngle * deg2rad);
+float sy = +cosf(startAngle * deg2rad);
+```
+
+### A triangle's apex direction is the whole meaning of an icon
+
+**Symptom:** the mute button read as a play button.
+
+The speaker was drawn as a driver box plus a triangle, with the triangle's apex on
+the right and its wide edge on the left. That is a right-pointing triangle — the
+universal play symbol. A speaker cone is the same three points mirrored: apex at
+the driver, wide edge flaring outward.
+
+Two shapes made of identical primitives can carry completely different meanings.
+When an icon is drawn from primitives rather than from an asset, state the intended
+orientation in a comment, because the code alone does not make the error visible.
+
+### A tap and a drag start identically
+
+**Symptom (anticipated, and designed against):** either the mute button fires while
+the user is trying to pan, or panning from the corner feels dead.
+
+On a surface where the whole screen is already a drag target, a button cannot act on
+touch-down. The press is only a tap if it stays within a small radius
+(14 px here), is released inside a time budget (450 ms), and never becomes a second
+finger. Anything else is a pan.
+
+The part that is easy to get wrong: the camera must receive the press *anyway*,
+from the first frame. Withholding motion until the gesture resolves makes every pan
+that starts near the button feel like it lags. Send the motion to the camera
+immediately and simply decline to fire the button if the gesture disqualifies
+itself — a tap moves the camera so little that the overlap is invisible.
+
+### Editing by string index can silently swallow adjacent code
+
+While rewriting the starfield, a Python edit that replaced everything between two
+located indices consumed a neighbouring function whose definition sat inside that
+range. The build failed immediately with an undefined-symbol error, so nothing
+reached the board — but the fix required recovering the lost function from the last
+commit.
+
+Two things that made this cheap to recover from, and are worth keeping to:
+
+- Commit working states before a substantial edit. `git show HEAD:path` was enough
+  to restore the function exactly.
+- Compile before flashing. The failure surfaced as a build error rather than as
+  mysterious behaviour on the device.
+
+After any edit performed by index or by range, grep for the symbols that were
+supposed to be untouched.
+
+### Cycle labelled variants on the display when the user is the instrument
+
+The codec produced no sound and the failure was not visible from the host: I2S
+reported every write succeeding, and every codec register read back exactly as
+written. Serial output could not answer the question either, since the only real
+evidence was whether a speaker made a noise.
+
+What resolved it was a test build that cycled four configurations — six seconds
+each, the label drawn on the panel — while playing a 440 Hz tone. The user only had
+to report which label was on screen when sound appeared, which identified both the
+missing state-machine write and the amplifier polarity in a single pass.
+
+When the only sensor is a person in the room, put the variant name where they are
+already looking and let the board iterate through the hypotheses. It is far faster
+than one build per question.
