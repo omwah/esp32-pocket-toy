@@ -37,6 +37,22 @@ static constexpr int   NUM_STARS      = 190;
 static constexpr float WORLD_W        = 2400.0f;
 static constexpr float WORLD_H        = 1800.0f;
 
+// ---- Mute button ----
+// Bottom-left corner, clear of the top corners where the camera puts most of
+// the action. The touch target is deliberately larger than the drawn icon.
+static constexpr int MUTE_ICON_X = 20;
+static constexpr int MUTE_ICON_Y = 216;
+static constexpr int MUTE_HIT_R  = 30;
+
+// A press only counts as a button tap if it stays within this many pixels and
+// is released within this long; anything else is a camera pan.
+static constexpr float TAP_SLOP_PX = 14.0f;
+static constexpr uint32_t TAP_MAX_MS = 450;
+
+// The button fades out when unused so it does not sit on the artwork forever.
+static constexpr uint32_t BUTTON_VISIBLE_MS = 4000;
+static constexpr uint32_t BUTTON_FADE_MS    = 900;
+
 // ---- Camera ----
 static constexpr float ZOOM_MIN       = 0.16f;  // whole battlefield in frame
 static constexpr float ZOOM_MAX       = 4.50f;  // close enough to see a single ship

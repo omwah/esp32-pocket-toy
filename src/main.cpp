@@ -25,6 +25,20 @@ Audio    audio;
 
 uint32_t lastFrameUs = 0;
 
+// Tap tracking. A press is a button tap only if it stays near where it started
+// and is released quickly; otherwise it is a camera pan, and the camera must
+// still receive it. This is why the button cannot simply act on touch-down.
+bool     pressActive   = false;
+bool     pressIsTap    = false;   // still within slop and time budget
+Vec2     pressStart{0, 0};
+uint32_t pressStartMs  = 0;
+uint32_t buttonShownMs = 0;       // when the control was last made visible
+
+bool inMuteButton(const Vec2 &p) {
+  float dx = p.x - MUTE_ICON_X, dy = p.y - MUTE_ICON_Y;
+  return dx * dx + dy * dy <= (float)MUTE_HIT_R * MUTE_HIT_R;
+}
+
 void setup() {
   Serial.begin(115200);
   delay(300);
@@ -67,8 +81,39 @@ void loop() {
 
   Vec2 p0, p1;
   int n = touch.read(p0, p1);
-  if (n > 0) camera.onTouch(n, p0, p1, nowMs);
-  else       camera.onRelease(nowMs);
+
+  if (n > 0) {
+    // Any touch reveals the control, so it is there when wanted but not
+    // permanently painted over the artwork.
+    buttonShownMs = nowMs;
+
+    if (!pressActive) {
+      pressActive  = true;
+      pressStart   = p0;
+      pressStartMs = nowMs;
+      // Only a single-finger press starting on the button can be a tap.
+      pressIsTap   = (n == 1) && inMuteButton(p0);
+    } else if (pressIsTap) {
+      // Disqualify as soon as it moves too far, becomes a second finger, or
+      // runs too long -- at which point it is a pan and belongs to the camera.
+      if (n > 1 || (p0 - pressStart).len() > TAP_SLOP_PX ||
+          nowMs - pressStartMs > TAP_MAX_MS)
+        pressIsTap = false;
+    }
+
+    // The camera sees the press either way. A tap moves it imperceptibly, and
+    // withholding it until the gesture resolves would make panning feel laggy.
+    camera.onTouch(n, p0, p1, nowMs);
+
+  } else {
+    if (pressActive && pressIsTap) {
+      audio.setMuted(!audio.muted());
+      buttonShownMs = nowMs;
+    }
+    pressActive = false;
+    pressIsTap  = false;
+    camera.onRelease(nowMs);
+  }
 
   battle.update(dt);
   camera.update(dt, nowMs, battle.actionCentre(), battle.actionSpread());
@@ -120,5 +165,14 @@ void loop() {
 
   audio.update();
 
-  renderer.draw(battle, camera);
+  // Fade the button out once it has gone unused for a while.
+  uint32_t shownFor = nowMs - buttonShownMs;
+  float alpha;
+  if (buttonShownMs == 0)                  alpha = 0.0f;
+  else if (shownFor < BUTTON_VISIBLE_MS)   alpha = 1.0f;
+  else if (shownFor < BUTTON_VISIBLE_MS + BUTTON_FADE_MS)
+    alpha = 1.0f - (float)(shownFor - BUTTON_VISIBLE_MS) / BUTTON_FADE_MS;
+  else                                     alpha = 0.0f;
+
+  renderer.draw(battle, camera, audio.muted(), alpha);
 }

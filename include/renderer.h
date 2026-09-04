@@ -10,7 +10,8 @@
 class Renderer {
 public:
   bool begin(TFT_eSPI &tft);
-  void draw(const Battle &b, const Camera &cam);
+  // `buttonAlpha` fades the mute control in and out; 0 hides it entirely.
+  void draw(const Battle &b, const Camera &cam, bool muted, float buttonAlpha);
 
 private:
   TFT_eSPI       *_tft = nullptr;
@@ -28,4 +29,5 @@ private:
   void drawStars(const Camera &cam);
   void drawPlanet(const Camera &cam);
   void drawShip(const Ship &s, const Camera &cam);
+  void drawMuteButton(bool muted, float alpha);
 };

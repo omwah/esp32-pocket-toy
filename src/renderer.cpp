@@ -393,7 +393,46 @@ void Renderer::drawShip(const Ship &s, const Camera &cam) {
   }
 }
 
-void Renderer::draw(const Battle &b, const Camera &cam) {
+void Renderer::drawMuteButton(bool muted, float alpha) {
+  if (alpha <= 0.01f) return;
+
+  const int cx = MUTE_ICON_X, cy = MUTE_ICON_Y;
+
+  // Dark disc behind the icon so it stays legible over the planet or a bright
+  // patch of fighting, rather than only over empty space.
+  uint16_t plate = mix(TFT_BLACK, rgb(22, 26, 36), alpha);
+  _fb->fillCircle(cx, cy, 15, plate);
+  _fb->drawSmoothCircle(cx, cy, 15, mix(TFT_BLACK, rgb(70, 80, 100), alpha),
+                        plate);
+
+  uint16_t fg = mix(TFT_BLACK, muted ? rgb(230, 90, 80) : rgb(210, 225, 245),
+                    alpha);
+
+  // Speaker: a small box for the driver, then a cone flaring outward to the
+  // right. The cone's wide edge must be on the right -- putting the apex there
+  // instead draws a right-pointing triangle, which reads as a play arrow.
+  _fb->fillRect(cx - 11, cy - 3, 5, 7, fg);                          // driver box
+  _fb->fillTriangle(cx - 7, cy, cx - 2, cy - 7, cx - 2, cy + 7, fg);  // cone
+
+  if (muted) {
+    // Slash across the icon.
+    _fb->drawLine(cx - 9, cy + 9, cx + 9, cy - 9, fg);
+    _fb->drawLine(cx - 9, cy + 8, cx + 9, cy - 10, fg);
+  } else {
+    // Two arcs radiating from the cone. TFT_eSPI measures arc angles with 0 at
+    // the bottom, increasing anticlockwise: 90 is left, 180 up, 270 right. So
+    // the right-hand side is 270, and spanning 300..60 puts the waves under the
+    // icon instead of beside it.
+    // Centred on the cone mouth, and sized so the outer arc stays clear of the
+    // 15 px plate edge: at radius 9 from cx - 1 the furthest pixel is cx + 8.
+    _fb->drawSmoothArc(cx - 1, cy, 6, 5, 230, 310, fg, plate, true);
+    _fb->drawSmoothArc(cx - 1, cy, 9, 8, 240, 300,
+                       mix(TFT_BLACK, rgb(150, 170, 200), alpha), plate, true);
+  }
+}
+
+void Renderer::draw(const Battle &b, const Camera &cam, bool muted,
+                    float buttonAlpha) {
   _fb->fillSprite(TFT_BLACK);
 
   drawStars(cam);
@@ -470,6 +509,8 @@ void Renderer::draw(const Battle &b, const Camera &cam) {
   const Ship *s = b.ships();
   for (int i = 0; i < MAX_SHIPS; i++)
     if (s[i].alive) drawShip(s[i], cam);
+
+  drawMuteButton(muted, buttonAlpha);
 
   // One continuous transfer. Splitting this into bands with a yield between
   // them tears visibly: the simulation is drawn once but the panel receives it

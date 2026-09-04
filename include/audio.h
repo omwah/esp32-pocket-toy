@@ -30,6 +30,11 @@ public:
 
   bool present() const { return _ok; }
 
+  // Muting also disables the power amplifier, which removes the idle hiss the
+  // FM8002E puts on the speaker -- worth it for something that runs unattended.
+  void setMuted(bool m);
+  bool muted() const { return _muted; }
+
 private:
   struct Voice {
     SfxKind  kind;
@@ -45,6 +50,7 @@ private:
 
   Voice _voices[AUDIO_VOICES];
   bool  _ok = false;
+  bool  _muted = false;
 
   bool writeReg(uint8_t reg, uint8_t val);
   bool initCodec();

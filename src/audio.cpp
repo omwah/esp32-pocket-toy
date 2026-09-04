@@ -167,8 +167,22 @@ int Audio::allocVoice(float gain) {
   return (bestProgress > 0.45f) ? best : -1;
 }
 
-void Audio::play(SfxKind kind, float gain, float pan) {
+void Audio::setMuted(bool m) {
+  if (_muted == m) return;
+  _muted = m;
   if (!_ok) return;
+
+  if (_muted) {
+    for (auto &v : _voices) v.active = false;   // drop anything mid-flight
+    i2s_zero_dma_buffer(I2S_PORT);
+    digitalWrite(SPK_ENABLE, HIGH);             // amplifier off
+  } else {
+    digitalWrite(SPK_ENABLE, LOW);
+  }
+}
+
+void Audio::play(SfxKind kind, float gain, float pan) {
+  if (!_ok || _muted) return;
 
   int idx = allocVoice(gain);
   if (idx < 0) return;
@@ -222,7 +236,7 @@ void Audio::play(SfxKind kind, float gain, float pan) {
 }
 
 void Audio::update() {
-  if (!_ok) return;
+  if (!_ok || _muted) return;
 
   static int16_t buf[FRAMES * 2];
   static float   lpState[AUDIO_VOICES] = {0};
