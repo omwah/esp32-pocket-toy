@@ -70,6 +70,13 @@ void Battle::spawnFleets() {
   _alive[0] = _alive[1] = perFleet;
 }
 
+void Battle::emit(EventKind kind, const Vec2 &at, uint8_t cls) {
+  // Silently drop once full. A tick that produces more than this many events is
+  // already a wall of noise; the extras would not be individually audible.
+  if (_eventCount >= MAX_EVENTS) return;
+  _events[_eventCount++] = {at, kind, cls};
+}
+
 void Battle::retarget(int idx) {
   Ship &s = _ships[idx];
   int   best = -1;
@@ -197,6 +204,7 @@ void Battle::updateAction() {
 
 void Battle::update(float dt) {
   _alive[0] = _alive[1] = 0;
+  _eventCount = 0;
 
   // --- Ships ---
   for (int i = 0; i < MAX_SHIPS; i++) {
@@ -241,6 +249,7 @@ void Battle::update(float dt) {
         // ship. Kept very short-lived: at this rate of fire anything lingering
         // accumulates into a field of stray dots.
         muzzleFlash(s.pos + aim * 10.0f, aim, s.cls == CAPITAL ? 1.0f : 0.45f);
+        emit(s.cls == CAPITAL ? EV_FIRE_HEAVY : EV_FIRE_LIGHT, s.pos, s.cls);
       }
     }
 
@@ -272,6 +281,9 @@ void Battle::update(float dt) {
       if (s.hp <= 0) {
         s.alive = false;
         explode(s.pos, s.cls == CAPITAL ? 3.0f : (s.cls == CRUISER ? 1.8f : 1.0f));
+        emit(EV_DEATH, s.pos, s.cls);
+      } else {
+        emit(EV_HIT, s.pos, s.cls);
       }
       break;
     }

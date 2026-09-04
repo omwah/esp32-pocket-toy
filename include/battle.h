@@ -4,6 +4,18 @@
 
 enum ShipClass : uint8_t { FIGHTER = 0, CRUISER = 1, CAPITAL = 2 };
 
+// Something worth hearing. The simulation records these each tick; main drains
+// the list and turns them into sound, so Battle stays independent of audio.
+enum EventKind : uint8_t { EV_FIRE_LIGHT = 0, EV_FIRE_HEAVY, EV_HIT, EV_DEATH };
+
+struct BattleEvent {
+  Vec2      pos;
+  EventKind kind;
+  uint8_t   cls;    // ship class involved, for weighting
+};
+
+static constexpr int MAX_EVENTS = 24;
+
 struct Ship {
   Vec2  pos, vel;
   float angle    = 0;      // facing, radians
@@ -50,10 +62,17 @@ public:
 
   int aliveCount(int fleet) const { return _alive[fleet]; }
 
+  // Events from the last update(). Valid until the next one.
+  const BattleEvent *events() const { return _events; }
+  int eventCount() const { return _eventCount; }
+
 private:
   Ship   _ships[MAX_SHIPS];
   Shot   _shots[MAX_SHOTS];
   Debris _debris[MAX_DEBRIS];
+
+  BattleEvent _events[MAX_EVENTS];
+  int   _eventCount = 0;
 
   Vec2  _action{WORLD_W * 0.5f, WORLD_H * 0.5f};
   Vec2  _spread{WORLD_W * 0.25f, WORLD_H * 0.25f};
@@ -66,5 +85,6 @@ private:
   void explode(const Vec2 &at, float scale);
   void muzzleFlash(const Vec2 &at, const Vec2 &dir, float scale);
   void retarget(int idx);
+  void emit(EventKind kind, const Vec2 &at, uint8_t cls);
   void updateAction();
 };

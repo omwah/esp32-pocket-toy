@@ -214,12 +214,47 @@ assigning any pin:
 |---|---|
 | SD card CLK / CMD | 38 / 40 |
 | SD card DATA0-3 | 39 / 41 / 48 / 47 |
-| I2S MCLK / BCLK / LRCK | 4 / 5 / 7 |
+| I2S MCLK / BCLK / LRCK | 4 / 5 / 7 (see the audio section) |
 | I2S DOUT / DIN | 8 / 6 |
-| Speaker enable | 1 |
+| Speaker enable | 1 (active LOW) |
 | Battery ADC | 9 |
 | UART0 TX / RX | 43 / 44 |
 | BOOT button | 0 |
+
+## Audio — verified
+
+**Codec: ES8311**, with an **FM8002E** power amplifier driving the speaker. The
+codec sits at I2C address **0x18** on the same bus as the touch controller, and its
+identity registers read `0xFD = 0x83`, `0xFE = 0x11`. Speaker rating is 1.5 W at
+8 ohm or 2 W at 4 ohm. The board also carries a MEMS microphone on I2S DIN.
+
+| Signal | GPIO |
+|---|---|
+| MCLK | 4 |
+| BCLK | 5 |
+| LRCK / WS | 7 |
+| DOUT (to codec) | 8 |
+| DIN (from microphone) | 6 |
+| Amplifier enable | 1 — **active LOW**; drive HIGH to mute |
+
+Working configuration: I2S master, 16 kHz, 16-bit, standard I2S format, with
+`mclk_multiple = I2S_MCLK_MULTIPLE_256` so MCLK runs at 4.096 MHz.
+
+Three things about this codec cost real time and are worth knowing up front:
+
+- **Register 0x00 must be written 0x80 to start the chip state machine.** Every
+  other register can be configured, will be accepted, and will read back correctly
+  without it — and the output stays completely silent with no error anywhere to
+  indicate why. This is the single most important write in the sequence.
+
+- **The ES8311 does not auto-increment its register address pointer.** Reading two
+  registers as one sequential two-byte transfer returns the first register's value
+  followed by `0xFF`. An identity check written that way sees `83 FF` instead of
+  `83 11`, concludes the wrong chip is present, and disables audio. Address every
+  register individually.
+
+- **The amplifier enable on GPIO1 is active LOW**, matching the vendor
+  documentation. Verified by test rather than assumed.
 
 ## Tooling
 
@@ -458,3 +493,27 @@ side made classes identifiable at a glance.
 Below about three pixels the silhouette is dropped for a marker whose pixel count
 encodes the class. That is also what keeps the wide shots affordable: the expensive
 per-class geometry only runs when it is large enough to see.
+
+### Generate audio against elapsed time, not once per frame
+
+**Symptom:** audio is silent or reduced to fragments, while the I2S driver reports
+every write succeeding.
+
+One 256-sample buffer at 16 kHz is 16 ms of audio. Frames arrive 45-70 ms apart at
+this project's frame rate, so producing exactly one buffer per frame supplies about
+a third of the samples the DMA needs and the queue is starved almost continuously.
+The fix is to fill the queue until it refuses more, rather than assuming a fixed
+relationship between frames and buffers.
+
+Related: never let the audio path block the frame loop. `i2s_write` here uses a
+2 ms timeout on the first block and zero on the rest, so a full queue costs nothing.
+
+### An identity check that fails closed will hide itself
+
+The codec's identity check failed, `Audio::begin()` returned false, and the
+screensaver ran silently exactly as designed — the failure was reported once on
+serial at boot and then never again. Two rounds of debugging went into the mixer
+and the gain staging before the boot log was read carefully.
+
+When a subsystem degrades gracefully, its failure is invisible from the outside.
+Read the initialisation log before investigating anything downstream of it.

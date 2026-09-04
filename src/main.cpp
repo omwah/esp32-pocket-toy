@@ -9,6 +9,7 @@
 #include <Arduino.h>
 #include <TFT_eSPI.h>
 
+#include "audio.h"
 #include "battle.h"
 #include "camera.h"
 #include "config.h"
@@ -20,6 +21,7 @@ Renderer renderer;
 Battle   battle;
 Camera   camera;
 Touch    touch;
+Audio    audio;
 
 uint32_t lastFrameUs = 0;
 
@@ -42,6 +44,9 @@ void setup() {
 
   if (!touch.begin())
     Serial.println("touch controller not responding; running without input");
+
+  audio.begin();   // failure is not fatal; the screensaver just runs silent
+
 
   camera.begin();
   battle.begin(esp_random());
@@ -67,6 +72,53 @@ void loop() {
 
   battle.update(dt);
   camera.update(dt, nowMs, battle.actionCentre(), battle.actionSpread());
+
+  // Turn this tick's events into sound. Anything off screen is skipped and
+  // distant events are quieter, so the mix follows whatever the camera is
+  // looking at rather than the whole battlefield at once.
+  if (audio.present()) {
+    const BattleEvent *ev = battle.events();
+    for (int i = 0; i < battle.eventCount(); i++) {
+      Vec2 sp = camera.toScreen(ev[i].pos);
+      if (!camera.visible(sp, 40)) continue;
+
+      // Pan by horizontal screen position; attenuate toward the frame edges.
+      float pan = (sp.x / SCREEN_W) * 2.0f - 1.0f;
+      float edge = fmaxf(fabsf(pan), fabsf((sp.y / SCREEN_H) * 2.0f - 1.0f));
+      float near = 1.0f - 0.45f * fminf(1.0f, edge);
+
+      // Zoomed out there are far more audible events, so scale back to keep
+      // the mix from turning into a wall of noise.
+      float z = fminf(1.0f, camera.zoom() * 1.4f);
+
+      switch (ev[i].kind) {
+        case EV_FIRE_LIGHT:
+          // Only a fraction of shots are voiced; every one would be mush.
+          if (random(0, 100) < 22)
+            audio.play(SFX_LASER, 0.70f * near * z, pan);
+          break;
+        case EV_FIRE_HEAVY:
+          audio.play(SFX_CANNON, 1.00f * near, pan);
+          break;
+        case EV_HIT:
+          if (random(0, 100) < 14)
+            audio.play(SFX_HIT, 0.55f * near * z, pan);
+          break;
+        case EV_DEATH:
+          if (ev[i].cls == CAPITAL) {
+            audio.play(SFX_EXPLOSION, 1.40f * near, pan);
+            audio.play(SFX_RUMBLE,    1.20f * near, pan);
+          } else if (ev[i].cls == CRUISER) {
+            audio.play(SFX_EXPLOSION, 1.10f * near, pan);
+          } else if (random(0, 100) < 55) {
+            audio.play(SFX_EXPLOSION, 0.90f * near * z, pan);
+          }
+          break;
+      }
+    }
+  }
+
+  audio.update();
 
   renderer.draw(battle, camera);
 }
