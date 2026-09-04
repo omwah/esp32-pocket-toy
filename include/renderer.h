@@ -16,7 +16,8 @@ private:
   TFT_eSPI       *_tft = nullptr;
   TFT_eSprite    *_fb  = nullptr;
 
-  // Parallax starfield, in world space at a fraction of camera motion.
+  // Parallax starfield. Coordinates are pixels within a screen-sized tile, not
+  // world units: the field translates with the camera but never scales with it.
   struct Star { float x, y; uint8_t layer; uint16_t colour; };
   Star _stars[NUM_STARS];
 

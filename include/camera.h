@@ -21,7 +21,8 @@ public:
             (world.y - _centre.y) * _zoom + SCREEN_H * 0.5f};
   }
 
-  float zoom() const { return _zoom; }
+  float zoom()  const { return _zoom; }
+  Vec2  centre() const { return _centre; }
 
   // Generous margin so sprites that straddle the edge still draw.
   bool visible(const Vec2 &s, float margin = 24.0f) const {

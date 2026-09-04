@@ -55,37 +55,55 @@ bool Renderer::begin(TFT_eSPI &tft) {
 void Renderer::makeStars() {
   for (int i = 0; i < NUM_STARS; i++) {
     Star &s = _stars[i];
-    s.x = random(0, (long)WORLD_W * 2) - WORLD_W * 0.5f;
-    s.y = random(0, (long)WORLD_H * 2) - WORLD_H * 0.5f;
+
+    // Stars live directly in a screen-sized tile, not in world space. They are
+    // a backdrop at effectively infinite distance, so their on-screen spacing
+    // must not depend on the camera zoom at all.
+    s.x = random(0, SCREEN_W);
+    s.y = random(0, SCREEN_H);
     s.layer = random(0, 3);
 
-    // Far stars are dimmer, near stars brighter and occasionally tinted.
-    uint8_t v = 70 + s.layer * 60 + random(0, 30);
-    if (random(0, 9) == 0)      s.colour = rgb(v, v * 0.8f, 255 - v * 0.2f);
-    else if (random(0, 11) == 0) s.colour = rgb(255 - v * 0.15f, v * 0.85f, v * 0.7f);
-    else                         s.colour = rgb(v, v, v);
+    // Backdrop must stay well below weapons fire in brightness, or a
+    // single-pixel tracer at wide zoom is indistinguishable from a star.
+    uint8_t v = 26 + s.layer * 26 + random(0, 16);
+
+    // Tint by scaling the channels of this star's own brightness. Writing the
+    // dominant channel as an absolute value (255 - v * 0.2) instead produced
+    // near-saturated red and blue pixels sitting at full brightness while every
+    // other star was dim -- they read as floating coloured dots, and dimming v
+    // could not fix them.
+    int roll = random(0, 100);
+    if (roll < 11)       s.colour = rgb(v * 0.72f, v * 0.80f, v);   // blue-white
+    else if (roll < 20)  s.colour = rgb(v, v * 0.78f, v * 0.62f);   // warm
+    else                 s.colour = rgb(v, v, v);
   }
 }
 
 void Renderer::drawStars(const Camera &cam) {
-  // Parallax: distant layers shift less than the world does.
-  const float PAR[3] = {0.18f, 0.38f, 0.66f};
+  // Translate the field by the camera position only. Projecting stars through
+  // the camera the way world objects are projected makes their spacing scale
+  // with the zoom, and since the automatic camera is always easing its zoom by
+  // a little, the whole field visibly swims and re-spaces itself even when it
+  // looks like nothing is moving. A backdrop must translate, never scale.
+  //
+  // Parallax factors are small: far layers barely shift, near ones drift a
+  // little, which is what sells depth without the field reading as particles.
+  const float PAR[3] = {0.006f, 0.016f, 0.032f};
+
+  Vec2 c = cam.centre();
 
   for (const Star &s : _stars) {
     float p = PAR[s.layer];
-    Vec2 world{s.x, s.y};
-    Vec2 sc = cam.toScreen(world);
 
-    // Re-project with reduced parallax about the screen centre.
-    sc.x = (sc.x - SCREEN_W * 0.5f) * p + SCREEN_W * 0.5f;
-    sc.y = (sc.y - SCREEN_H * 0.5f) * p + SCREEN_H * 0.5f;
+    // Wrap into the tile. The seam is at the screen edge, so a star leaving one
+    // side reappears on the other -- which is what an endless field looks like.
+    float x = fmodf(s.x - c.x * p, (float)SCREEN_W);
+    if (x < 0) x += SCREEN_W;
+    float y = fmodf(s.y - c.y * p, (float)SCREEN_H);
+    if (y < 0) y += SCREEN_H;
 
-    // Wrap so the field never runs out as the camera travels.
-    float x = fmodf(sc.x, (float)SCREEN_W); if (x < 0) x += SCREEN_W;
-    float y = fmodf(sc.y, (float)SCREEN_H); if (y < 0) y += SCREEN_H;
-
-    if (s.layer == 2) _fb->drawPixel((int)x, (int)y, s.colour);
-    else              _fb->drawPixel((int)x, (int)y, dim(s.colour, 0.75f));
+    _fb->drawPixel((int)x, (int)y,
+                   s.layer == 2 ? s.colour : dim(s.colour, 0.7f));
   }
 }
 
@@ -228,50 +246,150 @@ void Renderer::drawShip(const Ship &s, const Camera &cam) {
   if (!cam.visible(p)) return;
 
   float z = cam.zoom();
-  uint16_t hull = FLEET_HULL[s.fleet];
+  uint16_t hull  = FLEET_HULL[s.fleet];
+  uint16_t light = mix(hull, rgb(255, 255, 255), 0.45f);   // lit upper surfaces
+  uint16_t shade = dim(hull, 0.42f);                       // shadowed side
+  uint16_t glow  = FLEET_TRAIL[s.fleet];
 
-  // Size in pixels by class, scaled by zoom.
-  float len = (s.cls == CAPITAL ? 30.0f : s.cls == CRUISER ? 15.0f : 7.0f) * z;
+  float len = (s.cls == CAPITAL ? 34.0f : s.cls == CRUISER ? 17.0f : 8.0f) * z;
 
-  // Below a couple of pixels there is no shape to draw -- just a dot, which is
-  // what keeps the wide zoom-out cheap with hundreds of ships on screen.
-  if (len < 2.5f) { _fb->drawPixel((int)p.x, (int)p.y, hull); return; }
-  if (len < 5.0f) {
-    _fb->drawPixel((int)p.x, (int)p.y, hull);
-    _fb->drawPixel((int)p.x + 1, (int)p.y, dim(hull, 0.6f));
+  // Below a few pixels there is no silhouette to read. Draw a bright marker
+  // instead, sized by class, so fleet strength still reads when zoomed out.
+  if (len < 3.0f) {
+    _fb->drawPixel((int)p.x, (int)p.y, light);
+    if (s.cls != FIGHTER) {
+      _fb->drawPixel((int)p.x + 1, (int)p.y, hull);
+      _fb->drawPixel((int)p.x, (int)p.y + 1, hull);
+    }
+    if (s.cls == CAPITAL) _fb->drawPixel((int)p.x + 1, (int)p.y + 1, hull);
     return;
   }
 
   float ca = cosf(s.angle), sa = sinf(s.angle);
-  auto body = [&](float fx, float fy) -> Vec2 {
+  // Ship-local coordinates: +x forward, +y to starboard.
+  auto B = [&](float fx, float fy) -> Vec2 {
     return {p.x + fx * ca - fy * sa, p.y + fx * sa + fy * ca};
   };
+  auto tri = [&](Vec2 a, Vec2 b, Vec2 c, uint16_t col) {
+    _fb->fillTriangle(a.x, a.y, b.x, b.y, c.x, c.y, col);
+  };
 
-  float w = len * 0.38f;
-  Vec2 nose = body(len * 0.5f, 0);
-  Vec2 la   = body(-len * 0.5f,  w);
-  Vec2 lb   = body(-len * 0.5f, -w);
+  float L = len * 0.5f;          // half length
+  float W = len * 0.30f;         // half beam
 
-  _fb->fillTriangle(nose.x, nose.y, la.x, la.y, lb.x, lb.y, hull);
+  switch (s.cls) {
+    case FIGHTER: {
+      // Swept dart: a narrow fuselage with wings raked back from the nose.
+      Vec2 nose = B(L, 0);
+      Vec2 wl   = B(-L * 0.55f,  W * 1.35f);
+      Vec2 wr   = B(-L * 0.55f, -W * 1.35f);
+      Vec2 tl   = B(-L * 0.15f,  W * 0.30f);
+      Vec2 tr   = B(-L * 0.15f, -W * 0.30f);
 
-  // Engine glow trailing the hull.
-  Vec2 tail = body(-len * 0.55f, 0);
-  _fb->drawPixel((int)tail.x, (int)tail.y, FLEET_TRAIL[s.fleet]);
+      tri(nose, wl, tl, shade);      // starboard wing, away from the light
+      tri(nose, wr, tr, light);      // port wing, lit
+      tri(nose, tl, tr, hull);       // fuselage
+      break;
+    }
 
-  // Capitals get a spine and a hull outline so they read as the big ships.
-  if (s.cls == CAPITAL && len > 12) {
-    _fb->drawLine(nose.x, nose.y, tail.x, tail.y, dim(hull, 1.4f > 1 ? 1.0f : 1.0f));
-    _fb->drawTriangle(nose.x, nose.y, la.x, la.y, lb.x, lb.y, dim(hull, 0.55f));
+    case CRUISER: {
+      // Angular hull with a forward prow and a blocky engine section, so it
+      // reads as a warship rather than a scaled-up fighter.
+      Vec2 nose = B(L, 0);
+      Vec2 sl   = B(L * 0.25f,  W);
+      Vec2 sr   = B(L * 0.25f, -W);
+      Vec2 al   = B(-L * 0.75f,  W * 0.78f);
+      Vec2 ar   = B(-L * 0.75f, -W * 0.78f);
+
+      tri(nose, sl, sr, hull);       // prow
+      tri(sl, sr, ar, hull);         // midships
+      tri(sl, ar, al, shade);
+      // Lit strip along the port flank picks out the hull edge.
+      _fb->drawLine(nose.x, nose.y, sr.x, sr.y, light);
+      _fb->drawLine(sr.x, sr.y, ar.x, ar.y, light);
+
+      if (len > 11) {
+        // Dorsal spine and a pair of gun sponsons.
+        Vec2 t1 = B(-L * 0.70f, 0), t2 = B(L * 0.30f, 0);
+        _fb->drawLine(t1.x, t1.y, t2.x, t2.y, light);
+        Vec2 g1 = B(L * 0.05f,  W * 1.15f), g2 = B(L * 0.05f, -W * 1.15f);
+        _fb->drawPixel((int)g1.x, (int)g1.y, light);
+        _fb->drawPixel((int)g2.x, (int)g2.y, light);
+      }
+      break;
+    }
+
+    case CAPITAL:
+    default: {
+      // Long slab hull, flared stern, hangar bays down the flanks. Silhouette
+      // is deliberately rectangular so it never reads as a big fighter.
+      Vec2 nose = B(L, 0);
+      Vec2 bl   = B(L * 0.55f,  W * 0.62f);
+      Vec2 br   = B(L * 0.55f, -W * 0.62f);
+      Vec2 ml   = B(-L * 0.35f,  W);
+      Vec2 mr   = B(-L * 0.35f, -W);
+      Vec2 sl   = B(-L, W * 0.80f);
+      Vec2 sr   = B(-L, -W * 0.80f);
+
+      tri(nose, bl, br, light);      // prow, catching the light
+      tri(bl, br, mr, hull);
+      tri(bl, mr, ml, hull);
+      tri(ml, mr, sr, shade);        // stern section in shadow
+      tri(ml, sr, sl, shade);
+
+      if (len > 14) {
+        // Hull plating: a bright dorsal line and dark flank seams.
+        Vec2 d1 = B(L * 0.85f, 0), d2 = B(-L * 0.90f, 0);
+        _fb->drawLine(d1.x, d1.y, d2.x, d2.y, light);
+        _fb->drawLine(bl.x, bl.y, ml.x, ml.y, dim(hull, 0.28f));
+        _fb->drawLine(br.x, br.y, mr.x, mr.y, dim(hull, 0.28f));
+
+        // Lit windows along the superstructure.
+        for (int k = 0; k < 4; k++) {
+          float fx = L * (0.30f - k * 0.28f);
+          Vec2 w1 = B(fx,  W * 0.42f), w2 = B(fx, -W * 0.42f);
+          _fb->drawPixel((int)w1.x, (int)w1.y, rgb(255, 236, 190));
+          _fb->drawPixel((int)w2.x, (int)w2.y, rgb(255, 236, 190));
+        }
+      }
+      break;
+    }
   }
 
-  // Damage bar, only when close enough for it to mean anything.
-  if (z > 1.6f && s.hp < s.hpMax) {
+  // Engine glow, sized by class and brighter under acceleration.
+  float thrust = fminf(1.0f, s.vel.len() / 90.0f);
+  float er = (s.cls == CAPITAL ? 0.16f : s.cls == CRUISER ? 0.13f : 0.10f) * len;
+  Vec2 ex = B(-L * 1.02f, 0);
+
+  if (er >= 1.2f) {
+    _fb->fillCircle((int)ex.x, (int)ex.y, (int)er, dim(glow, 0.55f + 0.45f * thrust));
+    _fb->drawPixel((int)ex.x, (int)ex.y, mix(glow, rgb(255, 255, 255), 0.6f));
+    if (s.cls != FIGHTER) {
+      // Twin engines on the larger hulls.
+      Vec2 e1 = B(-L * 1.02f,  W * 0.45f), e2 = B(-L * 1.02f, -W * 0.45f);
+      _fb->fillCircle((int)e1.x, (int)e1.y, (int)fmaxf(1.0f, er * 0.6f), dim(glow, 0.8f));
+      _fb->fillCircle((int)e2.x, (int)e2.y, (int)fmaxf(1.0f, er * 0.6f), dim(glow, 0.8f));
+    }
+  } else {
+    _fb->drawPixel((int)ex.x, (int)ex.y, glow);
+  }
+
+  // Battle damage: hull darkens and flickers as it takes hits, so a ship about
+  // to die is visible without needing the health bar.
+  float f = s.hp / s.hpMax;
+  if (f < 0.35f && len > 6) {
+    if ((millis() >> 6) % 3 == 0)
+      _fb->fillCircle((int)p.x, (int)p.y, (int)fmaxf(1.0f, len * 0.13f),
+                      rgb(255, 150, 40));
+  }
+
+  // Health bar only at close zoom, where there is room for it to be legible.
+  if (z > 1.8f && f < 1.0f) {
     int bw = (int)(len * 0.8f);
-    int bx = (int)(p.x - bw / 2), by = (int)(p.y - len * 0.75f);
-    float f = s.hp / s.hpMax;
-    _fb->drawFastHLine(bx, by, bw, rgb(60, 20, 20));
-    _fb->drawFastHLine(bx, by, (int)(bw * f), f > 0.5f ? rgb(40, 220, 60)
-                                                       : rgb(240, 160, 40));
+    int bx = (int)(p.x - bw / 2), by = (int)(p.y - len * 0.72f);
+    _fb->drawFastHLine(bx, by, bw, rgb(70, 22, 22));
+    _fb->drawFastHLine(bx, by, (int)(bw * f),
+                       f > 0.5f ? rgb(60, 230, 80) : rgb(250, 170, 45));
   }
 }
 
@@ -290,28 +408,61 @@ void Renderer::draw(const Battle &b, const Camera &cam) {
     Vec2 p = cam.toScreen(db[i].pos);
     if (!cam.visible(p, 6)) continue;
     float f = db[i].life / db[i].lifeMax;
-    uint16_t c = dim(rgb(255, 190 * f, 70 * f), f);
-    float r = db[i].size * z * f;
+
+    // Cool from white through orange to deep red, and fade on a cubic curve so
+    // the last part of the life is nearly invisible. A linear fade leaves dim
+    // red dots visibly hanging in space well after the event.
+    uint16_t hot = (f > 0.55f) ? mix(rgb(255, 170, 60), rgb(255, 255, 235),
+                                     (f - 0.55f) / 0.45f)
+                               : mix(rgb(180, 40, 10), rgb(255, 170, 60),
+                                     f / 0.55f);
+    uint16_t c = dim(hot, f * f * f * f * f);
+
+    float r = db[i].size * z * f * f;
     if (r < 1.2f) _fb->drawPixel((int)p.x, (int)p.y, c);
     else          _fb->fillCircle((int)p.x, (int)p.y, (int)r, c);
   }
 
-  // Shots.
+  // Shots. Drawn as a tapered tracer: a white-hot head that reads as a bolt of
+  // energy, fading into the firing fleet's colour along the tail. A flat
+  // single-colour pixel at this size is indistinguishable from a star, which is
+  // why even the smallest tracer keeps a two-pixel head.
   const Shot *sh = b.shots();
   for (int i = 0; i < MAX_SHOTS; i++) {
     if (!sh[i].alive) continue;
     Vec2 p = cam.toScreen(sh[i].pos);
-    if (!cam.visible(p, 8)) continue;
-    uint16_t c = FLEET_SHOT[sh[i].fleet];
+    if (!cam.visible(p, 10)) continue;
 
-    // Draw as a short streak along the direction of travel.
-    Vec2 back = sh[i].pos - sh[i].vel.norm() * (sh[i].heavy ? 16.0f : 9.0f);
+    uint16_t tail = FLEET_SHOT[sh[i].fleet];
+    uint16_t head = sh[i].heavy ? rgb(255, 244, 214) : rgb(255, 255, 255);
+
+    float trailLen = sh[i].heavy ? 26.0f : 15.0f;
+    Vec2 back = sh[i].pos - sh[i].vel.norm() * trailLen;
     Vec2 q = cam.toScreen(back);
-    if (z < 0.8f) _fb->drawPixel((int)p.x, (int)p.y, c);
-    else {
-      _fb->drawLine(q.x, q.y, p.x, p.y, c);
-      if (sh[i].heavy && z > 1.2f)
-        _fb->drawLine(q.x, q.y + 1, p.x, p.y + 1, dim(c, 0.6f));
+
+    Vec2 d = p - q;
+    float pix = d.len();
+
+    if (pix < 1.5f) {
+      // Too small for a streak, but still brighter than any star.
+      _fb->drawPixel((int)p.x, (int)p.y, head);
+      continue;
+    }
+
+    // Fade the streak from the fleet colour at the tail to white at the head.
+    int steps = (int)fminf(pix, 12.0f);
+    for (int k = 0; k < steps; k++) {
+      float t = (float)k / (float)(steps - 1 > 0 ? steps - 1 : 1);
+      Vec2 a = q + d * t;
+      _fb->drawPixel((int)a.x, (int)a.y, mix(dim(tail, 0.45f), head, t * t));
+    }
+
+    // Heavy capital rounds get width so they read as a different weapon class.
+    if (sh[i].heavy && pix > 3.0f) {
+      Vec2 n = Vec2{-d.y, d.x}.norm();
+      _fb->drawLine(q.x + n.x, q.y + n.y, p.x + n.x, p.y + n.y, dim(tail, 0.7f));
+      _fb->drawLine(q.x - n.x, q.y - n.y, p.x - n.x, p.y - n.y, dim(tail, 0.7f));
+      _fb->drawPixel((int)p.x, (int)p.y, head);
     }
   }
 

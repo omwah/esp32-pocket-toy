@@ -64,6 +64,7 @@ private:
   void spawnShip(int idx, int fleet, ShipClass cls);
   void fire(const Ship &s, const Vec2 &aim);
   void explode(const Vec2 &at, float scale);
+  void muzzleFlash(const Vec2 &at, const Vec2 &dir, float scale);
   void retarget(int idx);
   void updateAction();
 };

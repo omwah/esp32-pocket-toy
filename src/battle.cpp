@@ -101,6 +101,24 @@ void Battle::fire(const Ship &s, const Vec2 &aim) {
   }
 }
 
+void Battle::muzzleFlash(const Vec2 &at, const Vec2 &dir, float scale) {
+  int n = (scale > 0.8f) ? 2 : 1;
+  for (auto &d : _debris) {
+    if (n <= 0) break;
+    if (d.alive) continue;
+    // Thrown forward in a narrow cone, unlike an explosion's radial burst.
+    float a = atan2f(dir.y, dir.x) + frand(-0.35f, 0.35f);
+    float v = frand(70.0f, 150.0f) * scale;
+    d.pos     = at;
+    d.vel     = {cosf(a) * v, sinf(a) * v};
+    d.lifeMax = frand(0.035f, 0.075f);
+    d.life    = d.lifeMax;
+    d.size    = frand(0.8f, 1.4f) * scale;
+    d.alive   = true;
+    n--;
+  }
+}
+
 void Battle::explode(const Vec2 &at, float scale) {
   int n = (int)(6 * scale);
   for (auto &d : _debris) {
@@ -110,7 +128,7 @@ void Battle::explode(const Vec2 &at, float scale) {
     float v = frand(18.0f, 95.0f) * scale;
     d.pos     = at;
     d.vel     = {cosf(a) * v, sinf(a) * v};
-    d.lifeMax = frand(0.4f, 1.3f);
+    d.lifeMax = frand(0.10f, 0.28f) * (0.5f + 0.6f * scale);
     d.life    = d.lifeMax;
     d.size    = frand(1.0f, 2.2f) * scale;
     d.alive   = true;
@@ -217,7 +235,12 @@ void Battle::update(float dt) {
         s.cooldown = st.reload * frand(0.8f, 1.25f);
         // Lead the target slightly so shots are not always trailing.
         Vec2 lead = (t.pos + t.vel * (dist / 330.0f)) - s.pos;
-        fire(s, lead.norm());
+        Vec2 aim = lead.norm();
+        fire(s, aim);
+        // A brief flash at the muzzle so the shot visibly originates from a
+        // ship. Kept very short-lived: at this rate of fire anything lingering
+        // accumulates into a field of stray dots.
+        muzzleFlash(s.pos + aim * 10.0f, aim, s.cls == CAPITAL ? 1.0f : 0.45f);
       }
     }
 
@@ -249,8 +272,6 @@ void Battle::update(float dt) {
       if (s.hp <= 0) {
         s.alive = false;
         explode(s.pos, s.cls == CAPITAL ? 3.0f : (s.cls == CRUISER ? 1.8f : 1.0f));
-      } else {
-        explode(sh.pos, 0.35f);
       }
       break;
     }

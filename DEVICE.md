@@ -395,3 +395,66 @@ it is the only copy that will ever exist. Two practical notes for repeating it:
 - The dump takes about two minutes. Run it in the background, but verify the output
   file exists and has the expected size afterwards — the first attempt failed
   silently and left no file at all.
+
+### A backdrop must translate, never scale
+
+**Symptom:** the starfield swims — stars visibly drift and re-space themselves
+relative to each other, reading as floating particles rather than as a distant
+backdrop. Present even when the camera appears to be sitting still.
+
+**Cause:** the stars were projected through the same `toScreen` transform as ships
+and shots, so their on-screen spacing scaled with the zoom. The automatic camera
+eases its zoom continuously, including a slow breathing term that never settles, so
+the field was permanently rescaling by small amounts.
+
+Stars belong at effectively infinite distance. They now live in a screen-sized tile
+and are translated by the camera position alone, with a small parallax factor per
+depth layer and a wrap at the screen edge. Nothing about them depends on zoom.
+
+The general rule: anything meant to read as *far away* must not share the world
+projection. Scaling is what tells the eye an object has a position in the scene.
+
+### Compute tint by scaling brightness, not by absolute values
+
+**Symptom:** a scattering of saturated red and blue dots sitting at full brightness
+against an otherwise dim starfield, easily mistaken for lingering particles.
+
+**Cause:** the tinted-star colours set their dominant channel to an absolute value,
+`255 - v * 0.2`. With `v` in the intended dim range of 26-68 that evaluates to
+241-250 — nearly maximum. Worse, the expression is inverted: *lowering* the overall
+brightness `v` made those stars brighter, so the earlier change that dimmed the
+field made these particular stars stand out more.
+
+Tints should scale a value's own brightness (`rgb(v * 0.72f, v * 0.80f, v)`), so
+brightness and hue stay independent and a later brightness change behaves as
+expected.
+
+### Particle lifetime is set by event rate, not by how it looks in isolation
+
+**Symptom:** the screen accumulates a drifting haze of dim dots that outlasts the
+events producing them.
+
+A 0.4-1.3 s debris life looks fine for a single explosion. With ~200 ships firing
+every 1-4 s, and a spark burst on every non-lethal hit, that is hundreds of live
+particles at any moment. Three changes fixed it:
+
+- Cut lifetimes to 0.10-0.28 s for explosion debris and 0.035-0.075 s for muzzle
+  flash.
+- Fade on a steep curve (fifth power) and shrink the particle quadratically, so it
+  is small and nearly black for most of its life rather than a lingering dim dot.
+- Remove the per-hit spark entirely. Only ship deaths spawn debris now; the tracer
+  disappearing already reads as a hit.
+
+Budget particles against the rate at which they are spawned, not against how a
+single one looks.
+
+### Silhouette, not colour, distinguishes ship classes
+
+The first ships were all the same triangle, scaled by class and tinted by fleet.
+They were unreadable in a crowd. Giving each class its own outline — swept dart,
+prow-and-sponsons, long slab hull with lit windows — plus a lit side and a shadowed
+side made classes identifiable at a glance.
+
+Below about three pixels the silhouette is dropped for a marker whose pixel count
+encodes the class. That is also what keeps the wide shots affordable: the expensive
+per-class geometry only runs when it is large enough to see.
