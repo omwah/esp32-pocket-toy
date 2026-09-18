@@ -1,3 +1,5 @@
 .pio/
 .pio-venv/
 *.bin
+projects/uncanny-eyes/generated/*
+!projects/uncanny-eyes/generated/.gitkeep
