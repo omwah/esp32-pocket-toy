@@ -83,7 +83,7 @@ path.
 **A full backup has been taken.** The entire 16 MB flash was dumped before any write:
 
 ```
-factory_backup_16MB.bin   16777216 bytes
+hardware/hosyond-es3c28p/factory_backup_16MB.bin   16777216 bytes
 md5  e39630b4ac323ca3b42ad4f5e0b0cd06
 ```
 
@@ -91,7 +91,7 @@ Restore with:
 
 ```
 esptool --port /dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_44:1B:F6:CE:4E:40-if00 \
-        write-flash 0x0 factory_backup_16MB.bin
+        write-flash 0x0 hardware/hosyond-es3c28p/factory_backup_16MB.bin
 ```
 
 87.5% of the flash reads as erased (`0xff`), consistent with a 4 MB partition layout
