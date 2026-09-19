@@ -1,8 +1,7 @@
 # Uncanny Eyes for the Hosyond ES3C28P
 
 Animated eyes for the Hosyond ESP32-S3 2.8-inch touch display. The eyes roam,
-blink, track touches, and cycle through eleven designs using Adafruit's original
-editable PNG artwork.
+blink, track touches, and cycle through 23 designs using editable PNG artwork.
 
 The animation is an original hardware-specific adaptation inspired by
 [Adafruit Uncanny Eyes](https://github.com/adafruit/Uncanny_Eyes), written by
@@ -12,11 +11,17 @@ gaze, touch input, and the display backend to TFT_eSPI on this ESP32-S3.
 
 ## Build and flash
 
-From the repository root:
+From the repository root, upload the FAT filesystem once (and whenever artwork
+or sounds change), then upload the firmware:
 
 ```sh
+micromamba run -n platformio pio run -d projects/uncanny-eyes -t uploadfs
 micromamba run -n platformio pio run -d projects/uncanny-eyes -t upload
 ```
+
+Routine firmware-only changes need only the second command. The first install
+uses a custom partition table, so both commands are required when migrating
+from an older firmware that embedded its assets.
 
 The upload port is pinned in `platformio.ini`. Board details and recovery
 instructions are in [`../../HARDWARE.md`](../../HARDWARE.md).
@@ -117,14 +122,15 @@ Samples and licensing details are documented in [`audio/README.md`](audio/README
 ## Implementation
 
 A 320x240 RGB565 framebuffer is allocated in PSRAM and transferred as one SPI
-operation to avoid tearing. Editable source artwork lives under `assets/`.
-`tools/generate_eye_assets.py` converts those PNGs to efficient RGB565 and
-threshold tables under ignored `generated/` files before each build. The PNGs,
-not opaque C arrays, remain the source of truth.
+operation to avoid tearing. Editable source artwork and audio live under
+`assets/` and `audio/sources/`. The build generators convert them into compact
+RGB565, threshold-map, and raw PCM files under the ignored `data/` directory.
+The original PNG and WAV files remain the source of truth.
 
-Unlike the original Adafruit Monster Eyes firmware, which loads `config.eye`
-and bitmap assets from a FAT/CIRCUITPY filesystem at runtime, this project
-compiles the generated artwork directly into the firmware. The Monster Eyes
-textures were resized or projected for this renderer, and the existing smooth
-eyelid maps are used for progressive blinking. No device filesystem setup is
-required after uploading the firmware.
+Like Adafruit Monster Eyes, this project stores its runtime assets in a FAT
+filesystem instead of compiling them into the application. When a style is
+selected, its sclera, iris, and eyelid data are loaded into reusable PSRAM
+buffers. Audio samples are likewise loaded from FATFS into PSRAM before
+playback. This keeps the application image small while retaining fast rendering
+and audio streaming. The Monster Eyes textures were resized or projected for
+this renderer, and the existing smooth eyelid maps provide progressive blinking.

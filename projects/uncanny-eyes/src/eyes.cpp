@@ -4,6 +4,7 @@
 #include "eyes.h"
 #include "config.h"
 #include "eye_assets.h"
+#include <FFat.h>
 #include <math.h>
 
 namespace {
@@ -23,6 +24,11 @@ bool Eyes::begin(TFT_eSPI &display) {
   _frame = new TFT_eSprite(&display);
   _frame->setColorDepth(16);
   if (!_frame->createSprite(SCREEN_W, SCREEN_H)) return false;
+  _sclera = (uint16_t *)ps_malloc(EYE_MAX_SCLERA_PIXELS * sizeof(uint16_t));
+  _iris = (uint16_t *)ps_malloc(EYE_MAX_IRIS_PIXELS * sizeof(uint16_t));
+  _upper = (uint8_t *)ps_malloc(EYE_MAX_LID_PIXELS);
+  _lower = (uint8_t *)ps_malloc(EYE_MAX_LID_PIXELS);
+  if (!_sclera || !_iris || !_upper || !_lower || !loadStyle(0)) return false;
   uint32_t now = millis();
   _nextBlink = now + random(1200, 3500);
   _holdEnd = now;
@@ -116,27 +122,47 @@ void Eyes::showControls() {
   sampleBattery();
 }
 
-void Eyes::nextStyle() {
-  _style = (_style + 1) % EYE_ASSET_COUNT;
-  showControls();
-  _blinkStart = _styleChangedAt;
+bool Eyes::loadStyle(uint8_t style) {
+  if (style >= EYE_ASSET_COUNT) return false;
+  const EyeAssetInfo &asset = EYE_ASSETS[style];
+  File file = FFat.open(asset.path, FILE_READ);
+  uint8_t header[16];
+  if (!file || file.read(header, sizeof(header)) != sizeof(header) ||
+      memcmp(header, "EYE1", 4) != 0) {
+    Serial.printf("eye asset unavailable: %s\n", asset.path);
+    return false;
+  }
+  auto u16 = [&](int offset) { return (uint16_t)(header[offset] | (header[offset + 1] << 8)); };
+  if (u16(4) != asset.scleraW || u16(6) != asset.scleraH ||
+      u16(8) != asset.irisW || u16(10) != asset.irisH ||
+      u16(12) != asset.lidW || u16(14) != asset.lidH) return false;
+  size_t scleraBytes = (size_t)asset.scleraW * asset.scleraH * 2;
+  size_t irisBytes = (size_t)asset.irisW * asset.irisH * 2;
+  size_t lidBytes = (size_t)asset.lidW * asset.lidH;
+  bool ok = file.read((uint8_t *)_sclera, scleraBytes) == scleraBytes &&
+            file.read((uint8_t *)_iris, irisBytes) == irisBytes &&
+            file.read(_upper, lidBytes) == lidBytes &&
+            file.read(_lower, lidBytes) == lidBytes;
+  file.close();
+  if (!ok) Serial.printf("eye asset truncated: %s\n", asset.path);
+  return ok;
 }
 
+void Eyes::nextStyle() { setStyle((_style + 1) % EYE_ASSET_COUNT); }
+
 void Eyes::previousStyle() {
-  _style = (_style + EYE_ASSET_COUNT - 1) % EYE_ASSET_COUNT;
-  showControls();
-  _blinkStart = _styleChangedAt;
+  setStyle((_style + EYE_ASSET_COUNT - 1) % EYE_ASSET_COUNT);
 }
 
 void Eyes::setStyle(uint8_t style) {
-  if (style >= EYE_ASSET_COUNT || style == _style) return;
+  if (style >= EYE_ASSET_COUNT || style == _style || !loadStyle(style)) return;
   _style = style;
   showControls();
   _blinkStart = _styleChangedAt;
 }
 
 void Eyes::drawEye(int cx, float blink) {
-  const EyeAsset &asset = EYE_ASSETS[_style];
+  const EyeAssetInfo &asset = EYE_ASSETS[_style];
   const bool fixedGaze = false;
   const float gx = _gazeX;
   const float gy = _gazeY;
@@ -171,8 +197,8 @@ void Eyes::drawEye(int cx, float blink) {
       int lidX = sampledArtX + ((asset.lidW >= 256) ? eyeIndex * 128 : 0);
       lidX = constrain(lidX, 0, asset.lidW - 1);
       int lidY = constrain(mapY * asset.lidH / 128, 0, asset.lidH - 1);
-      uint8_t upper = asset.upper[lidY * asset.lidW + lidX];
-      uint8_t lower = asset.lower[lidY * asset.lidW + lidX];
+      uint8_t upper = _upper[lidY * asset.lidW + lidX];
+      uint8_t lower = _lower[lidY * asset.lidW + lidX];
       uint8_t baseUpper = (_style == 10 || fixedGaze) ? 0 : constrain(55 + gy * 35, 0, 100);
       uint8_t baseLower = (_style == 10 || fixedGaze) ? 0 : constrain(55 - gy * 25, 0, 100);
       uint8_t upperThreshold = baseUpper + (254 - baseUpper) * blink;
@@ -193,7 +219,7 @@ void Eyes::drawEye(int cx, float blink) {
       int sy = (asset.scleraH - 128) / 2 + mapY - lroundf(gy * GAZE_RANGE_Y);
       sx = constrain(sx, 0, asset.scleraW - 1);
       sy = constrain(sy, 0, asset.scleraH - 1);
-      uint16_t colour = asset.sclera[sy * asset.scleraW + sx];
+      uint16_t colour = _sclera[sy * asset.scleraW + sx];
 
       int px = x - (cx + lroundf(gx * GAZE_RANGE_X));
       int py = y - (EYE_Y + lroundf(gy * GAZE_RANGE_Y));
@@ -230,7 +256,7 @@ void Eyes::drawEye(int cx, float blink) {
         // row zero is the outside, higher rows approach the pupil.
         int iy = constrain((int)((irisRadius - radius) * asset.irisH / irisRadius),
                            0, asset.irisH - 1);
-        colour = asset.iris[iy * asset.irisW + ix];
+        colour = _iris[iy * asset.irisW + ix];
       }
 
       if (_style == 10) {

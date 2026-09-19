@@ -23,10 +23,11 @@ sclera textures were projected into square PNG maps. Smooth Uncanny Eyes lid
 maps replace the source renderer's 1-bit sweep masks so blinking remains
 progressive in this renderer.
 
-Do not edit files under `generated/`. After changing artwork, regenerate it:
+Do not edit files under `generated/` or `data/`. After changing artwork,
+PlatformIO regenerates compact FATFS eye files and uploads them with:
 
 ```sh
-micromamba run -n platformio python tools/generate_eye_assets.py
+micromamba run -n platformio pio run -d projects/uncanny-eyes -t uploadfs
 ```
 
-PlatformIO also runs the generator automatically before every build.
+The PNG artwork remains the canonical source.

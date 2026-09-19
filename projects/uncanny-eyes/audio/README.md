@@ -2,7 +2,12 @@
 
 The WAV files in `sources/` are the canonical firmware assets. They have been
 trimmed, normalized, and converted to 16 kHz mono signed 16-bit PCM. PlatformIO
-converts them to ignored firmware tables with `tools/generate_audio_assets.py`.
+converts them to ignored raw PCM files under `data/audio/` with
+`tools/generate_audio_assets.py`. Upload those FATFS assets with:
+
+```sh
+micromamba run -n platformio pio run -d projects/uncanny-eyes -t uploadfs
+```
 
 | Style | Source | License |
 |---|---|---|

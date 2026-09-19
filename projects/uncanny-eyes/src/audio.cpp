@@ -1,6 +1,7 @@
 #include "audio.h"
 #include "config.h"
 #include "audio_assets.h"
+#include <FFat.h>
 #include <Wire.h>
 #include <driver/i2s.h>
 
@@ -32,6 +33,8 @@ bool Audio::initCodec() {
 
 bool Audio::begin() {
   pinMode(SPK_ENABLE,OUTPUT); digitalWrite(SPK_ENABLE,HIGH);
+  _buffer = (int16_t *)ps_malloc(AUDIO_MAX_SAMPLES * sizeof(int16_t));
+  if (!_buffer) { Serial.println("audio: PSRAM allocation failed"); return false; }
   if (!initCodec()) { Serial.println("audio codec unavailable"); return false; }
   i2s_config_t cfg={}; cfg.mode=(i2s_mode_t)(I2S_MODE_MASTER|I2S_MODE_TX);
   cfg.sample_rate=AUDIO_RATE; cfg.bits_per_sample=I2S_BITS_PER_SAMPLE_16BIT;
@@ -56,9 +59,20 @@ void Audio::playStyle(uint8_t style) {
   if (!_ok || _muted || style>=11) return;
   // Hazel normally breathes quietly; roughly one event in five is a sigh.
   uint8_t sampleIndex = (style == 0 && random(5) == 0) ? 11 : style;
+  const AudioSampleInfo &info = AUDIO_SAMPLES[sampleIndex];
   portENTER_CRITICAL(&_mux);
-  _sample=AUDIO_SAMPLES[sampleIndex].data;
-  _length=AUDIO_SAMPLES[sampleIndex].length;
+  _sample = nullptr; _position = _length = 0;
+  portEXIT_CRITICAL(&_mux);
+  File file = FFat.open(info.path, FILE_READ);
+  size_t bytes = (size_t)info.length * sizeof(int16_t);
+  if (!file || file.read((uint8_t *)_buffer, bytes) != bytes) {
+    Serial.printf("audio asset unavailable: %s\n", info.path);
+    return;
+  }
+  file.close();
+  portENTER_CRITICAL(&_mux);
+  _sample=_buffer;
+  _length=info.length;
   _position=0;
   portEXIT_CRITICAL(&_mux);
   Serial.printf("audio: play style=%u sample=%u samples=%u\n",

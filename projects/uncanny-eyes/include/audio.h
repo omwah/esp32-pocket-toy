@@ -22,6 +22,7 @@ private:
   bool _muted = false;
   TaskHandle_t _task = nullptr;
   portMUX_TYPE _mux = portMUX_INITIALIZER_UNLOCKED;
+  int16_t *_buffer = nullptr;
   const int16_t *_sample = nullptr;
   uint32_t _length = 0;
   uint32_t _position = 0;

@@ -1,6 +1,7 @@
 // Animated eyes for the Hosyond ES3C28P ESP32-S3 display.
 #include <Arduino.h>
 #include <TFT_eSPI.h>
+#include <FFat.h>
 #include <esp_sleep.h>
 #include "eyes.h"
 #include "touch.h"
@@ -47,6 +48,15 @@ void setup() {
   display.init();
   display.setRotation(1); // 320x240 landscape
   display.fillScreen(TFT_BLACK);
+
+  if (!FFat.begin(false)) {
+    display.setTextColor(TFT_RED, TFT_BLACK);
+    display.drawString("FATFS assets missing", 8, 8, 2);
+    display.drawString("run: pio run -t uploadfs", 8, 30, 1);
+    while (true) delay(1000);
+  }
+  Serial.printf("assets: fatfs=%u used=%u\n", (unsigned)FFat.totalBytes(),
+                (unsigned)FFat.usedBytes());
 
   if (!eyes.begin(display)) {
     display.setTextColor(TFT_RED, TFT_BLACK);

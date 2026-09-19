@@ -33,7 +33,12 @@ private:
   uint32_t _styleChangedAt = 0;
   uint32_t _lastBatterySample = 0;
   int _batteryPercent = -1;
+  uint16_t *_sclera = nullptr;
+  uint16_t *_iris = nullptr;
+  uint8_t *_upper = nullptr;
+  uint8_t *_lower = nullptr;
 
+  bool loadStyle(uint8_t style);
   float blinkAmount(uint32_t nowMs) const;
   void chooseTarget(uint32_t nowMs);
   void drawEye(int centreX, float blink);

@@ -1,38 +1,28 @@
-"""Generate firmware tables from the editable PNG eye sources.
-
-The PNGs in assets/ are the source of truth. This file is both a normal Python
-program and a PlatformIO pre-build script. Generated files are intentionally
-not committed; run this script whenever an asset changes.
-"""
+"""Generate compact FATFS eye files from editable PNG source artwork."""
 from pathlib import Path
-import sys
+import struct
 from PIL import Image
 
 if "__file__" in globals():
     ROOT = Path(__file__).resolve().parents[1]
-else:  # SCons executes extra_scripts without defining __file__
+else:
     Import("env")
     ROOT = Path(env["PROJECT_DIR"])
 ASSETS = ROOT / "assets"
 OUT = ROOT / "generated"
+DATA = ROOT / "data" / "eyes"
 STYLES = [
     ("defaultEye", "Hazel"), ("dragonEye", "Dragon"),
     ("noScleraEye", "No sclera"), ("goatEye", "Goat / Krampus"),
     ("newtEye", "Newt"), ("terminatorEye", "Terminator"),
     ("catEye", "Cartoon cat"), ("owlEye", "Owl"),
     ("naugaEye", "Nauga"), ("doeEye", "Realistic deer"),
-    ("animeEye", "Big Anime"),
-    ("m4BigBlue", "Big Blue"),
-    ("m4Demon", "Demon"),
-    ("m4DoomRed", "Doom Red"),
-    ("m4DoomSpiral", "Doom Spiral"),
-    ("m4Fish", "Fish"),
-    ("m4Fizzgig", "Fizzgig"),
-    ("m4HypnoRed", "Hypno Red"),
-    ("m4Reflection", "Reflection"),
-    ("m4Skull", "Skull"),
-    ("m4SnakeGreen", "Snake Green"),
-    ("m4Spikes", "Spikes"),
+    ("animeEye", "Big Anime"), ("m4BigBlue", "Big Blue"),
+    ("m4Demon", "Demon"), ("m4DoomRed", "Doom Red"),
+    ("m4DoomSpiral", "Doom Spiral"), ("m4Fish", "Fish"),
+    ("m4Fizzgig", "Fizzgig"), ("m4HypnoRed", "Hypno Red"),
+    ("m4Reflection", "Reflection"), ("m4Skull", "Skull"),
+    ("m4SnakeGreen", "Snake Green"), ("m4Spikes", "Spikes"),
     ("m4ToonStripe", "Toon Stripe"),
 ]
 
@@ -42,49 +32,43 @@ def rgb565(pixel):
 
 def load(path, mode):
     image = Image.open(path).convert(mode)
-    if mode == "RGB": values = [rgb565(p) for p in image.getdata()]
-    else: values = list(image.getdata())
+    values = ([rgb565(p) for p in image.getdata()] if mode == "RGB"
+              else list(image.getdata()))
     return image.width, image.height, values
-
-def emit_array(fp, ctype, name, values, columns):
-    fp.write(f"const {ctype} {name}[] PROGMEM = {{\n")
-    for i in range(0, len(values), columns):
-        row = values[i:i + columns]
-        fmt = "0x%04X" if ctype == "uint16_t" else "0x%02X"
-        fp.write("  " + ", ".join(fmt % v for v in row) + ",\n")
-    fp.write("};\n\n")
 
 def generate():
     OUT.mkdir(exist_ok=True)
-    header = OUT / "eye_assets.h"
-    source = OUT / "eye_assets.cpp"
-    header.write_text("""// Generated from assets/*.png by tools/generate_eye_assets.py. DO NOT EDIT.\n#pragma once\n#include <Arduino.h>\nstruct EyeAsset {\n  const char *name;\n  const uint16_t *sclera; uint16_t scleraW, scleraH;\n  const uint16_t *iris; uint16_t irisW, irisH;\n  const uint8_t *upper; const uint8_t *lower; uint16_t lidW, lidH;\n};\nextern const EyeAsset EYE_ASSETS[];\nextern const uint8_t EYE_ASSET_COUNT;\n""")
+    DATA.mkdir(parents=True, exist_ok=True)
     records = []
-    with source.open("w") as fp:
-        fp.write('// Generated from assets/*.png. DO NOT EDIT.\n#include "eye_assets.h"\n\n')
-        for index, (folder, title) in enumerate(STYLES):
-            base = ASSETS / folder
-            sw, sh, sclera = load(base / "sclera.png", "RGB")
-            iw, ih, iris = load(base / "iris.png", "RGB")
-            upper_path = base / "lid-upper.png"
-            lower_path = base / "lid-lower.png"
-            lw, lh, upper = load(upper_path, "L")
-            lw2, lh2, lower = load(lower_path, "L")
-            if (lw, lh) != (lw2, lh2):
-                raise ValueError(f"lid dimensions differ in {folder}")
-            prefix = f"eye{index}"
-            emit_array(fp, "uint16_t", prefix + "Sclera", sclera, 12)
-            emit_array(fp, "uint16_t", prefix + "Iris", iris, 12)
-            emit_array(fp, "uint8_t", prefix + "Upper", upper, 20)
-            emit_array(fp, "uint8_t", prefix + "Lower", lower, 20)
-            records.append((title, prefix, sw, sh, iw, ih, lw, lh))
-        fp.write("const EyeAsset EYE_ASSETS[] = {\n")
-        for title, p, sw, sh, iw, ih, lw, lh in records:
-            fp.write(f'  {{"{title}", {p}Sclera, {sw}, {sh}, {p}Iris, {iw}, {ih}, '
-                     f'{p}Upper, {p}Lower, {lw}, {lh}}},\n')
-        fp.write("};\nconst uint8_t EYE_ASSET_COUNT = sizeof(EYE_ASSETS) / sizeof(EYE_ASSETS[0]);\n")
-    print(f"Generated {header.relative_to(ROOT)} and {source.relative_to(ROOT)}")
+    max_sclera = max_iris = max_lid = 0
+    for index, (folder, title) in enumerate(STYLES):
+        base = ASSETS / folder
+        sw, sh, sclera = load(base / "sclera.png", "RGB")
+        iw, ih, iris = load(base / "iris.png", "RGB")
+        lw, lh, upper = load(base / "lid-upper.png", "L")
+        lw2, lh2, lower = load(base / "lid-lower.png", "L")
+        if (lw, lh) != (lw2, lh2):
+            raise ValueError(f"lid dimensions differ in {folder}")
+        path = f"/eyes/{index:02d}.eye"
+        with (DATA / f"{index:02d}.eye").open("wb") as out:
+            out.write(struct.pack("<4s6H", b"EYE1", sw, sh, iw, ih, lw, lh))
+            out.write(struct.pack(f"<{len(sclera)}H", *sclera))
+            out.write(struct.pack(f"<{len(iris)}H", *iris))
+            out.write(bytes(upper)); out.write(bytes(lower))
+        records.append((title, path, sw, sh, iw, ih, lw, lh))
+        max_sclera = max(max_sclera, sw * sh)
+        max_iris = max(max_iris, iw * ih)
+        max_lid = max(max_lid, lw * lh)
 
-# PlatformIO executes extra_scripts using SCons' Import; direct execution is
-# useful for contributors and CI.
+    (OUT / "eye_assets.h").write_text("""// Generated metadata. DO NOT EDIT.\n#pragma once\n#include <Arduino.h>\nstruct EyeAssetInfo {\n  const char *name; const char *path;\n  uint16_t scleraW, scleraH, irisW, irisH, lidW, lidH;\n};\nextern const EyeAssetInfo EYE_ASSETS[];\nextern const uint8_t EYE_ASSET_COUNT;\nextern const uint32_t EYE_MAX_SCLERA_PIXELS;\nextern const uint32_t EYE_MAX_IRIS_PIXELS;\nextern const uint32_t EYE_MAX_LID_PIXELS;\n""")
+    with (OUT / "eye_assets.cpp").open("w") as out:
+        out.write('#include "eye_assets.h"\nconst EyeAssetInfo EYE_ASSETS[] = {\n')
+        for title, path, sw, sh, iw, ih, lw, lh in records:
+            out.write(f'  {{"{title}", "{path}", {sw}, {sh}, {iw}, {ih}, {lw}, {lh}}},\n')
+        out.write("};\nconst uint8_t EYE_ASSET_COUNT = sizeof(EYE_ASSETS)/sizeof(EYE_ASSETS[0]);\n")
+        out.write(f"const uint32_t EYE_MAX_SCLERA_PIXELS = {max_sclera};\n")
+        out.write(f"const uint32_t EYE_MAX_IRIS_PIXELS = {max_iris};\n")
+        out.write(f"const uint32_t EYE_MAX_LID_PIXELS = {max_lid};\n")
+    print(f"Generated metadata and {len(records)} FATFS eye files")
+
 generate()
