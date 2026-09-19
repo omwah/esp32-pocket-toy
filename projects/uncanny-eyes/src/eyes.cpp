@@ -225,9 +225,13 @@ void Eyes::draw(bool soundPresent, bool muted) {
 
     // Style navigation stays clear of the eyes and uses generous touch areas.
     _frame->drawRoundRect(3, SCREEN_H - 35, 52, 31, 5, TFT_WHITE);
+    _frame->drawRoundRect(SCREEN_W / 2 - 29, SCREEN_H - 35, 58, 31, 5, TFT_CYAN);
     _frame->drawRoundRect(SCREEN_W - 55, SCREEN_H - 35, 52, 31, 5, TFT_WHITE);
     _frame->setTextColor(TFT_WHITE, rgb(7, 3, 10));
     _frame->drawString("<", 29, SCREEN_H - 20, 2);
+    _frame->setTextColor(TFT_CYAN, rgb(7, 3, 10));
+    _frame->drawString("FLIP", SCREEN_W / 2, SCREEN_H - 20, 1);
+    _frame->setTextColor(TFT_WHITE, rgb(7, 3, 10));
     _frame->drawString(">", SCREEN_W - 29, SCREEN_H - 20, 2);
 
     char battery[8];

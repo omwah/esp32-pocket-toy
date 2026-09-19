@@ -16,6 +16,7 @@ bool pressActive = false;
 TouchPoint pressStart{};
 uint32_t pressStartedAt = 0;
 bool sleepCandidate = false;
+bool flipped = false;
 
 void enterDeepSleep() {
   audio.stop();
@@ -77,6 +78,13 @@ void loop() {
       } else if (pressStart.x <= 65 && pressStart.y >= SCREEN_H - 45) {
         eyes.previousStyle();
         nextSoundAt = now + random(8000, 20000);
+      } else if (pressStart.x >= SCREEN_W / 2 - 40 &&
+                 pressStart.x <= SCREEN_W / 2 + 40 &&
+                 pressStart.y >= SCREEN_H - 45) {
+        flipped = !flipped;
+        display.setRotation(flipped ? 3 : 1);
+        touch.setFlipped(flipped);
+        eyes.showControls();
       } else if (pressStart.x >= SCREEN_W - 65 && pressStart.y >= SCREEN_H - 45) {
         eyes.nextStyle();
         nextSoundAt = now + random(8000, 20000);

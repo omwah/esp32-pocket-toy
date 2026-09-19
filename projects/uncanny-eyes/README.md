@@ -27,6 +27,7 @@ instructions are in [`../../HARDWARE.md`](../../HARDWARE.md).
 - Touch/drag: both eyes follow the contact point (where supported by the style)
 - Tap while controls are hidden: show controls and battery percentage
 - Bottom-left `<` button: previous style
+- Bottom-center FLIP button: rotate display and touch controls 180 degrees
 - Bottom-right `>` button: next style
 - Upper-left SOUND/MUTED button: toggle sound; gray NO SND indicates unavailable audio
 - Press and hold without moving for 2 seconds: deep sleep

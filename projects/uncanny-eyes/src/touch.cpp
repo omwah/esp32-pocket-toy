@@ -26,7 +26,11 @@ int Touch::read(TouchPoint &p) {
   if ((b[0] & 0x0f) == 0) return 0;
   int rawX = ((b[1] & 0x0f) << 8) | b[2];
   int rawY = ((b[3] & 0x0f) << 8) | b[4];
-  p.x = constrain(rawY, 0, SCREEN_W - 1);
-  p.y = constrain(SCREEN_H - rawX, 0, SCREEN_H - 1);
+  float x = constrain(rawY, 0, SCREEN_W - 1);
+  float y = constrain(SCREEN_H - rawX, 0, SCREEN_H - 1);
+  // Rotation 3 is 180 degrees from rotation 1, so touch coordinates must
+  // follow the displayed controls when the device is turned upside down.
+  p.x = _flipped ? SCREEN_W - 1 - x : x;
+  p.y = _flipped ? SCREEN_H - 1 - y : y;
   return 1;
 }
