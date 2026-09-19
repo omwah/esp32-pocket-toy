@@ -33,16 +33,19 @@ instructions are in [`../../HARDWARE.md`](../../HARDWARE.md).
 - Press and hold without moving for 2 seconds: deep sleep
 - BOOT button: wake from deep sleep
 
-The styles follow the original collection: Hazel, Dragon, No Sclera,
-Goat/Krampus, Newt, Terminator, Cartoon Cat, Owl, Nauga, Realistic Deer, and
-Big Anime.
+The style collection includes Hazel, Dragon, No Sclera, Goat/Krampus, Newt,
+Terminator, Cartoon Cat, Owl, Nauga, Realistic Deer, and Big Anime, plus twelve
+styles adapted from Adafruit Monster Eyes: Big Blue, Demon, Doom Red, Doom
+Spiral, Fish, Fizzgig, Hypno Red, Reflection, Skull, Snake Green, Spikes, and
+Toon Stripe. Demon and Doom Spiral preserve their animated iris rotation.
 Owl, Nauga, and Deer track movement like the other living-eye styles.
 Realistic Deer replaces
 Adafruit's abstract cartoon Doe with a brown textured iris and the broad,
 horizontal pupil characteristic of deer.
 
-Each style occasionally plays a short recorded sound at a randomized 15–45
-second interval. Samples and licensing details are documented in
+The original eleven styles occasionally play a short recorded sound at a
+randomized 15–45 second interval. The added Monster Eyes styles currently display `NO SND`.
+Samples and licensing details are documented in
 [`audio/README.md`](audio/README.md).
 
 ## Implementation

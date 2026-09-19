@@ -16,7 +16,7 @@ converts them to ignored firmware tables with `tools/generate_audio_assets.py`.
 | Owl | [Google Assistant Sound Library, Owl Hooting](https://actions.google.com/sounds/v1/animals/owl_hooting.ogg) | Google sound-library terms |
 | Nauga | [sound-cc0](https://github.com/code4fukui/sound-cc0), `switch1.wav` | CC0 |
 | Realistic Deer | [Animal or beast sounds](https://opengameart.org/content/animal-or-beast-sounds), `Voice 1.wav` | CC0 |
-| Big Anime | [sound-cc0](https://github.com/code4fukui/sound-cc0), `bell1.wav` | CC0 |
+| Big Anime | [Shimmer glitter magic](https://opengameart.org/content/shimmer-glitter-magic), `shimmer_1.flac`, by The Berklee College of Music (submitted by qubodup) | CC BY 3.0 |
 
 No audio from *Terminator 2* is included. Its style uses a public-domain recorded
 metallic mechanism instead.

@@ -128,11 +128,15 @@ void Eyes::drawEye(int cx, float blink) {
   const float gx = _gazeX;
   const float gy = _gazeY;
   const int eyeIndex = cx > SCREEN_W / 2 ? 1 : 0;
-  const int pupilRadius = (_style == 7) ? 23 :
-                          ((_style == 8) ? 11 : ((_style == 10) ? 16 : 14));
-  // Match the IRIS_WIDTH encoded by each upstream style. Some flat cartoon
-  // styles intentionally use a 1x1 colour texture spread over a large iris.
-  static const uint8_t irisRadii[] = {40, 80, 80, 64, 40, 40, 64, 52, 40, 52, 57};
+  static const uint8_t pupilRadii[] = {
+    14,14,14,14,14,14,14,23,11,14,16, // existing styles
+    14,10,14,0,25,15,14,1,8,10,14,14  // Monster M4SK artwork
+  };
+  static const uint8_t irisRadii[] = {
+    40,80,80,64,40,40,64,52,40,52,57,
+    43,55,25,63,58,58,50,60,35,45,38,40
+  };
+  const int pupilRadius = pupilRadii[_style];
   const int irisRadius = irisRadii[_style];
 
   for (int y = EYE_Y - EYE_HALF_H; y < EYE_Y + EYE_HALF_H; ++y) {
@@ -182,7 +186,7 @@ void Eyes::drawEye(int cx, float blink) {
       int py = y - (EYE_Y + lroundf(gy * GAZE_RANGE_Y));
       float radius = sqrtf((float)(px * px + py * py));
       bool slit;
-      if (_style == 1 || _style == 4 || _style == 6)
+      if (_style == 1 || _style == 4 || _style == 6 || _style == 12 || _style == 20)
         slit = abs(px) < 3 + abs(py) / 18 && abs(py) < irisRadius;
       else if (_style == 3)
         slit = abs(py) < 4 + abs(px) / 20 && abs(px) < irisRadius;
@@ -196,7 +200,17 @@ void Eyes::drawEye(int cx, float blink) {
         colour = (_style == 5) ? rgb(255, 20, 8) : TFT_BLACK;
       } else if (radius < irisRadius && asset.irisW > 0) {
         float angle = atan2f((float)py, (float)px);
-        int ix = (int)((angle + PI) * asset.irisW / (2.0f * PI)) % asset.irisW;
+        // Preserve the animated texture rotation from the Monster M4SK
+        // Demon and Doom Spiral configurations.
+        if (_style == 12)
+          angle += millis() * (eyeIndex ? 0.001885f : -0.001885f); // +/-18 RPM
+        else if (_style == 14)
+          angle += millis() * (eyeIndex ? 0.007330f : 0.008378f);  // 70/80 RPM
+        else if (_style == 17)
+          angle += millis() * 0.000628f; // Hypno Red: slow 6 RPM spiral
+        int ix = (int)((angle + PI) * asset.irisW / (2.0f * PI));
+        ix = (ix % asset.irisW + asset.irisW) % asset.irisW;
+        if (_style == 14 && eyeIndex) ix = asset.irisW - 1 - ix;
         // Do not mirror angular texture coordinates. Both eyes share one
         // light source, so painted highlights must point the same direction.
         // Upstream's polar table stores distance inward from the iris edge:

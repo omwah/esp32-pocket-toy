@@ -22,6 +22,18 @@ STYLES = [
     ("catEye", "Cartoon cat"), ("owlEye", "Owl"),
     ("naugaEye", "Nauga"), ("doeEye", "Realistic deer"),
     ("animeEye", "Big Anime"),
+    ("m4BigBlue", "Big Blue"),
+    ("m4Demon", "Demon"),
+    ("m4DoomRed", "Doom Red"),
+    ("m4DoomSpiral", "Doom Spiral"),
+    ("m4Fish", "Fish"),
+    ("m4Fizzgig", "Fizzgig"),
+    ("m4HypnoRed", "Hypno Red"),
+    ("m4Reflection", "Reflection"),
+    ("m4Skull", "Skull"),
+    ("m4SnakeGreen", "Snake Green"),
+    ("m4Spikes", "Spikes"),
+    ("m4ToonStripe", "Toon Stripe"),
 ]
 
 def rgb565(pixel):

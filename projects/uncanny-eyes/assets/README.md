@@ -12,7 +12,16 @@ with locally created feathered tissue and a textured golden owl iris. The
 `doeEye` sclera and iris were similarly replaced with locally created realistic
 deer artwork; its eyelid maps remain derived from upstream. `animeEye` is a
 local large-eye design with a sapphire iris and oversized catchlights. All
-other directories are copied from upstream `convert/`.
+other original directories are copied from upstream `convert/`.
+
+The `m4*` directories adapt the ready-made artwork referenced by
+[Adafruit Monster Eyes](https://github.com/adafruit/Adafruit_Monster_Eyes) from
+[`M4_Eyes/eyes`](https://github.com/adafruit/Adafruit_Learning_System_Guides/tree/main/M4_Eyes/eyes).
+The source artwork and `config.eye` files are MIT-licensed by Adafruit
+Industries. Iris textures were resized for this display, and wide spherical
+sclera textures were projected into square PNG maps. Smooth Uncanny Eyes lid
+maps replace the source renderer's 1-bit sweep masks so blinking remains
+progressive in this renderer.
 
 Do not edit files under `generated/`. After changing artwork, regenerate it:
 
