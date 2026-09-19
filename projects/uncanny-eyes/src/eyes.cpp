@@ -148,14 +148,48 @@ bool Eyes::loadStyle(uint8_t style) {
   return ok;
 }
 
-void Eyes::nextStyle() { setStyle((_style + 1) % EYE_ASSET_COUNT); }
+bool Eyes::styleEnabled(uint8_t style) const {
+  return style < EYE_ASSET_COUNT && (_enabledMask & (1UL << style));
+}
+
+uint8_t Eyes::enabledStyleCount() const {
+  uint8_t count = 0;
+  for (uint8_t i = 0; i < EYE_ASSET_COUNT; ++i) if (styleEnabled(i)) ++count;
+  return count;
+}
+
+void Eyes::setEnabledMask(uint32_t mask) {
+  uint32_t valid = EYE_ASSET_COUNT == 32 ? 0xFFFFFFFFu : ((1UL << EYE_ASSET_COUNT) - 1);
+  _enabledMask = mask & valid;
+  if (!_enabledMask) _enabledMask = 1;
+  if (!styleEnabled(_style)) nextStyle();
+}
+
+bool Eyes::setStyleEnabled(uint8_t style, bool enabled) {
+  if (style >= EYE_ASSET_COUNT) return false;
+  if (!enabled && styleEnabled(style) && enabledStyleCount() == 1) return false;
+  if (enabled) _enabledMask |= 1UL << style;
+  else _enabledMask &= ~(1UL << style);
+  if (!styleEnabled(_style)) nextStyle();
+  return true;
+}
+
+void Eyes::nextStyle() {
+  for (uint8_t step = 1; step <= EYE_ASSET_COUNT; ++step) {
+    uint8_t candidate = (_style + step) % EYE_ASSET_COUNT;
+    if (styleEnabled(candidate)) { setStyle(candidate); return; }
+  }
+}
 
 void Eyes::previousStyle() {
-  setStyle((_style + EYE_ASSET_COUNT - 1) % EYE_ASSET_COUNT);
+  for (uint8_t step = 1; step <= EYE_ASSET_COUNT; ++step) {
+    uint8_t candidate = (_style + EYE_ASSET_COUNT - step) % EYE_ASSET_COUNT;
+    if (styleEnabled(candidate)) { setStyle(candidate); return; }
+  }
 }
 
 void Eyes::setStyle(uint8_t style) {
-  if (style >= EYE_ASSET_COUNT || style == _style || !loadStyle(style)) return;
+  if (!styleEnabled(style) || style == _style || !loadStyle(style)) return;
   _style = style;
   showControls();
   _blinkStart = _styleChangedAt;

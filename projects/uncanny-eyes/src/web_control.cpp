@@ -22,11 +22,12 @@ section{background:#241634;padding:1rem;margin:.8rem 0;border-radius:.8rem}butto
 </style></head><body><h1>Uncanny Eyes</h1><section id=status>Connecting...</section>
 <section><label>Style</label><select id=style class=wide></select><div class=grid><button onclick="post('/api/style/previous')">Previous</button><button onclick="post('/api/style/next')">Next</button></div></section>
 <section><div class=grid><button id=mute onclick=toggleMute()>Mute</button><button id=cycle onclick=toggleCycle()>Enable cycle</button></div><label>Cycle interval (seconds)</label><input id=interval type=number min=5 max=3600 value=30><button onclick=saveCycle()>Apply</button></section>
+<section><h2>Enabled eyes</h2><div id=eyes></div><small>Disabled eyes are skipped by manual navigation and cycle mode. At least one must remain enabled.</small></section>
 <section id=setup hidden><h2>Wi-Fi setup</h2><form method=post action=/provision><input name=ssid placeholder="Network name" required class=wide><input name=password type=password placeholder="Password" class=wide><button type=submit>Connect and save</button></form><small>Credentials are stored in device NVS, not in firmware.</small></section>
 <script>
-const ui={status:document.getElementById('status'),style:document.getElementById('style'),mute:document.getElementById('mute'),cycle:document.getElementById('cycle'),interval:document.getElementById('interval'),setup:document.getElementById('setup')};let s={}; async function post(url,data={}){await fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(data)});await refresh()}
-async function refresh(){try{s=await(await fetch('/api/status')).json();ui.status.innerHTML=`<b>Mode:</b> ${s.mode}<br><b>Style:</b> ${s.styleName}<br><b>Battery:</b> ${s.batteryPercent===null?'Unavailable':s.batteryPercent+'%'}<br><b>External power:</b> ${s.externalPower}<br><b>Wi-Fi:</b> ${s.wifi} ${s.ip||''}`;if(ui.style.options.length!==s.styles.length){ui.style.innerHTML=s.styles.map((x,i)=>`<option value=${i}>${x}</option>`).join('');ui.style.onchange=()=>post('/api/style',{style:ui.style.value})}ui.style.value=s.style;ui.mute.textContent=s.muted?'Unmute':'Mute';ui.cycle.textContent=s.cycleEnabled?'Disable cycle':'Enable cycle';ui.interval.value=s.cycleIntervalSeconds;ui.setup.hidden=!s.provisioning}catch(e){ui.status.textContent='Device unavailable'}}
-function toggleMute(){post('/api/audio',{muted:!s.muted})}function toggleCycle(){post('/api/cycle',{enabled:!s.cycleEnabled,interval:ui.interval.value})}function saveCycle(){post('/api/cycle',{enabled:s.cycleEnabled,interval:ui.interval.value})}refresh();setInterval(refresh,2500)
+const ui={status:document.getElementById('status'),style:document.getElementById('style'),mute:document.getElementById('mute'),cycle:document.getElementById('cycle'),interval:document.getElementById('interval'),eyes:document.getElementById('eyes'),setup:document.getElementById('setup')};let s={}; async function post(url,data={}){await fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(data)});await refresh()}
+async function refresh(){try{s=await(await fetch('/api/status')).json();ui.status.innerHTML=`<b>Mode:</b> ${s.mode}<br><b>Style:</b> ${s.styleName}<br><b>Battery:</b> ${s.batteryPercent===null?'Unavailable':s.batteryPercent+'%'}<br><b>External power:</b> ${s.externalPower}<br><b>Wi-Fi:</b> ${s.wifi} ${s.ip||''}`;ui.style.innerHTML=s.styles.map((x,i)=>s.enabled[i]?`<option value=${i}>${x}</option>`:'').join('');ui.style.onchange=()=>post('/api/style',{style:ui.style.value});ui.style.value=s.style;ui.eyes.innerHTML=s.styles.map((x,i)=>`<label style="display:block"><input type=checkbox ${s.enabled[i]?'checked':''} onchange="setEnabled(${i},this.checked)"> ${x}${i===s.style?' (active)':''}</label>`).join('');ui.mute.textContent=s.muted?'Unmute':'Mute';ui.cycle.textContent=s.cycleEnabled?'Disable cycle':'Enable cycle';ui.interval.value=s.cycleIntervalSeconds;ui.setup.hidden=!s.provisioning}catch(e){ui.status.textContent='Device unavailable'}}
+function setEnabled(style,enabled){post('/api/eyes/enabled',{style,enabled})}function toggleMute(){post('/api/audio',{muted:!s.muted})}function toggleCycle(){post('/api/cycle',{enabled:!s.cycleEnabled,interval:ui.interval.value})}function saveCycle(){post('/api/cycle',{enabled:s.cycleEnabled,interval:ui.interval.value})}refresh();setInterval(refresh,2500)
 </script></body></html>)HTML";
 }
 
@@ -40,6 +41,10 @@ void WebControl::begin(bool forceProvisioning) {
   _apName = "UncannyEyes-" + String(suffix);
   _apPassword = "eyes-" + String(suffix);
   WiFi.setHostname(_apName.c_str());
+  prefs.begin("uncanny-eyes", false);
+  uint32_t defaultMask = (1UL << _eyes.styleCount()) - 1;
+  _eyes.setEnabledMask(prefs.getUInt("enabled", defaultMask));
+  prefs.end();
   if (forceProvisioning) startProvisioning(); else connectSaved();
 }
 
@@ -81,6 +86,21 @@ void WebControl::startServer() {
   _server.on("/api/style/previous", HTTP_POST, [this] { _eyes.previousStyle(); manualStyleSelected(); _server.send(204); });
   _server.on("/api/audio", HTTP_POST, [this] {
     if (_server.hasArg("muted")) _audio.setMuted(_server.arg("muted") == "true" || _server.arg("muted") == "1");
+    _server.send(204);
+  });
+  _server.on("/api/eyes/enabled", HTTP_POST, [this] {
+    if (!_server.hasArg("style") || !_server.hasArg("enabled")) {
+      _server.send(400, "application/json", "{\"error\":\"missing_argument\"}"); return;
+    }
+    uint8_t style = _server.arg("style").toInt();
+    bool enabled = _server.arg("enabled") == "true" || _server.arg("enabled") == "1";
+    if (!_eyes.setStyleEnabled(style, enabled)) {
+      _server.send(409, "application/json", "{\"error\":\"at_least_one_style_must_remain_enabled\"}"); return;
+    }
+    prefs.begin("uncanny-eyes", false);
+    prefs.putUInt("enabled", _eyes.enabledMask());
+    prefs.end();
+    _cycleEnabled = false;
     _server.send(204);
   });
   _server.on("/api/cycle", HTTP_POST, [this] {
@@ -129,6 +149,11 @@ String WebControl::statusJson() const {
   for (uint8_t i = 0; i < _eyes.styleCount(); ++i) {
     if (i) out += ',';
     out += "\"" + jsonEscape(_eyes.styleNameAt(i)) + "\"";
+  }
+  out += "],\"enabled\":[";
+  for (uint8_t i = 0; i < _eyes.styleCount(); ++i) {
+    if (i) out += ',';
+    out += (_eyes.styleEnabled(i) ? "true" : "false");
   }
   out += "]}";
   return out;

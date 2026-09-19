@@ -10,6 +10,11 @@ public:
   void nextStyle();
   void previousStyle();
   void setStyle(uint8_t style);
+  bool setStyleEnabled(uint8_t style, bool enabled);
+  bool styleEnabled(uint8_t style) const;
+  uint8_t enabledStyleCount() const;
+  uint32_t enabledMask() const { return _enabledMask; }
+  void setEnabledMask(uint32_t mask);
   void showControls();
   bool controlsVisible(uint32_t nowMs) const { return nowMs - _styleChangedAt < 3500; }
   uint8_t style() const { return _style; }
@@ -30,6 +35,7 @@ private:
   uint32_t _blinkStart = 0, _nextBlink = 0;
   bool _touchWasDown = false;
   uint8_t _style = 0;
+  uint32_t _enabledMask = 0xFFFFFFFFu;
   uint32_t _styleChangedAt = 0;
   uint32_t _lastBatterySample = 0;
   int _batteryPercent = -1;

@@ -47,8 +47,10 @@ Once connected, the serial monitor reports its network address. Hold
 the BOOT button while resetting to reopen provisioning mode.
 
 The web interface can select a style, move to the previous or next style,
-mute/unmute audio, and enable automatic style cycling with a configurable
-interval. It reports the active Manual/Cycle mode, current style, battery,
+mute/unmute audio, enable automatic style cycling with a configurable interval,
+and enable or disable individual styles. Disabled styles remain installed but
+are skipped by touchscreen navigation, web previous/next actions, and cycle
+mode. At least one style must remain enabled. It reports the active Manual/Cycle mode, current style, battery,
 Wi-Fi state, and external-power state. External power is reported as `unknown`
 until a board signal is verified with
 [`../power-diagnostics/`](../power-diagnostics/).
