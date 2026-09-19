@@ -1,0 +1,9 @@
+#pragma once
+#include <Arduino.h>
+constexpr int SCREEN_W = 320;
+constexpr int SCREEN_H = 240;
+constexpr uint8_t TOUCH_I2C_ADDR = 0x38;
+constexpr int TOUCH_SDA = 16;
+constexpr int TOUCH_SCL = 15;
+constexpr int TOUCH_RST = 18;
+constexpr int TOUCH_INT = 17;
