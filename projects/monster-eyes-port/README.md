@@ -19,6 +19,8 @@ Wi-Fi, and overlays reach feature parity with the production application.
   when switching packages.
 - Tracks touch position. Tap once to reveal controls, then use previous, flip,
   and next along the bottom; tap above the controls to blink.
+- Shows an approximate LiPo percentage in the controls and enters deep sleep
+  after a stationary two-second press; only the BOOT button is configured to wake it.
 - Persists the current package and per-package enabled state in NVS. Navigation
   skips disabled packages and prevents disabling the final enabled package.
 - Accepts `previous` and `next` commands over the serial console.
@@ -45,7 +47,7 @@ micromamba run -n platformio pio run -d projects/uncanny-eyes -t upload
 ## Remaining migration work
 
 1. Convert the remaining locally modified styles into EYES package folders.
-2. Port audio, battery, sleep, Wi-Fi, and the complete production overlay.
+2. Port audio, Wi-Fi, and the remaining production overlay status indicators.
 3. Add cycle mode and package ordering to the persistent registry.
 5. Add atomic web upload, validation, download, rename, and deletion.
 6. Add namespaced configuration extensions for sounds and local visual effects.

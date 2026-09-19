@@ -7,3 +7,6 @@ constexpr int TOUCH_SDA = 16;
 constexpr int TOUCH_SCL = 15;
 constexpr int TOUCH_RST = 18;
 constexpr int TOUCH_INT = 17;
+constexpr int BATTERY_ADC = 9;
+constexpr int AUDIO_AMP_ENABLE = 1;
+constexpr gpio_num_t WAKE_BUTTON = GPIO_NUM_0;
