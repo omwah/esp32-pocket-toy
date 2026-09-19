@@ -23,12 +23,18 @@ Wi-Fi, and overlays reach feature parity with the production application.
   and next along the bottom; tap above the controls to blink.
 - Shows battery and Wi-Fi state in the controls and enters deep sleep after a
   stationary two-second press; only the BOOT button is configured to wake it.
+  The Wi-Fi icon is a switch: tapping it turns the radio on or off, and the
+  state is stored in NVS. While the radio is on and associated, the IP address
+  stays on screen under the package name; a greyed icon with a slash means the
+  radio is off. Style cycling and the serial console keep working with Wi-Fi
+  off, and `wifi on` over serial brings it back.
 - Provides runtime Wi-Fi provisioning, NVS credential storage, serial Wi-Fi
   commands, and a web UI for style selection, filtering, and persistent cycling.
 - Persists the current package, per-package enabled state, and package order in
   NVS. Navigation skips disabled packages and prevents disabling the final
   enabled package. The web UI provides ordering controls.
-- Accepts `previous` and `next` commands over the serial console.
+- Accepts `previous`, `next`, and `wifi on` / `wifi off` commands over the
+  serial console.
 - Drives the ES8311 codec from a dedicated core-0 I2S task, discovers optional
   package WAV sounds, and persists mute state and output level. The overlay and
   web UI provide mute controls; the overlay uses a speaker icon with a slash

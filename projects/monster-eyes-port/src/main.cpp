@@ -23,13 +23,13 @@ WebControl web(monster, audio, batteryPercent);
 bool controlsVisible = false;
 bool controlsDirty = false;
 bool flipped = false;
-bool showWifiIp = false;
 uint32_t controlsUntil = 0;
 bool backgroundPending = true;
 uint8_t lastRenderedStyle = 0xFF;
 bool lastWifiConnected = false;
 bool lastProvisioning = false;
 bool lastMuted = false;
+bool lastWifiEnabled = true;
 
 void drawSoundIcon(int x, int y) {
   uint16_t color = audio.hasSound() ? TFT_WHITE : TFT_LIGHTGREY;
@@ -100,7 +100,7 @@ void showControls(uint32_t now) {
 }
 
 void drawControls() {
-  const bool hasStatusLine = web.provisioning() || showWifiIp;
+  const bool hasStatusLine = web.provisioning() || web.connected();
   const int headerHeight = hasStatusLine ? 52 : 28;
   display.fillRect(0, 0, SCREEN_W, 56, monster.screenBackground());
   display.fillRect(0, 0, SCREEN_W, headerHeight, TFT_DARKGREY);
@@ -111,10 +111,12 @@ void drawControls() {
   if (web.provisioning()) {
     String setup = String(web.setupSsid()) + " / " + web.setupPassword();
     display.drawString(setup, SCREEN_W / 2, 32, 1);
-  } else if (showWifiIp) {
+  } else if (web.connected()) {
     display.drawString(web.ipAddress(), SCREEN_W / 2, 32, 1);
   }
-  uint16_t wifiColor = web.connected() ? TFT_GREEN : (web.configured() ? TFT_YELLOW : TFT_RED);
+  const bool wifiOn = web.enabled();
+  uint16_t wifiColor = !wifiOn ? TFT_LIGHTGREY :
+      (web.connected() ? TFT_GREEN : (web.configured() ? TFT_YELLOW : TFT_RED));
   const int wx = SCREEN_W - 47, wy = 17;
   for (int dy = -12; dy <= 0; ++dy) {
     for (int dx = -12; dx <= 12; ++dx) {
@@ -125,7 +127,7 @@ void drawControls() {
     }
   }
   display.fillCircle(wx, wy, 2, wifiColor);
-  if (!web.configured()) {
+  if (!wifiOn || !web.configured()) {
     display.drawLine(wx - 11, wy - 12, wx + 10, wy + 1, TFT_RED);
     display.drawLine(wx - 10, wy - 12, wx + 11, wy + 1, TFT_RED);
   }
@@ -176,6 +178,7 @@ void setup() {
   audio.setPackage(monster.configPath());
   lastMuted = audio.muted();
   web.begin();
+  lastWifiEnabled = web.enabled();
   Serial.println("Monster Eyes composite TFT backend ready");
 }
 
@@ -209,7 +212,7 @@ void loop() {
         showControls(now);
         controlsDirty = true;
       } else if (touchStartY < 55 && touchStartX >= SCREEN_W - 72 && touchStartX < SCREEN_W - 22) {
-        showWifiIp = !showWifiIp;
+        web.setEnabled(!web.enabled());
         showControls(now);
         controlsDirty = true;
       } else if (touchStartY >= SCREEN_H - 50) {
@@ -241,9 +244,11 @@ void loop() {
     lastMuted = audio.muted();
     controlsDirty = controlsVisible;
   }
-  if (web.connected() != lastWifiConnected || web.provisioning() != lastProvisioning) {
+  if (web.connected() != lastWifiConnected || web.provisioning() != lastProvisioning ||
+      web.enabled() != lastWifiEnabled) {
     lastWifiConnected = web.connected();
     lastProvisioning = web.provisioning();
+    lastWifiEnabled = web.enabled();
     controlsDirty = controlsVisible;
   }
   if (monster.style() != styleBeforeWeb) {

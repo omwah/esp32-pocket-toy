@@ -13,6 +13,8 @@ public:
   void begin(bool forceProvisioning = false);
   void update(uint32_t now);
   void stop();
+  void setEnabled(bool on);
+  bool enabled() const { return _enabled; }
   void manualStyleSelected();
   bool provisioning() const { return _provisioning; }
   bool configured() const { return _configured; }
@@ -29,7 +31,8 @@ private:
   DNSServer _dns;
   PackageStorage _storage;
   String _uploadError;
-  bool _started=false, _provisioning=false, _configured=false, _cycle=false;
+  bool _started=false, _listening=false, _enabled=true;
+  bool _provisioning=false, _configured=false, _cycle=false;
   uint32_t _interval=30000, _nextCycle=0, _connectStarted=0;
   String _serialLine, _apName, _apPassword;
   void connectSaved();
