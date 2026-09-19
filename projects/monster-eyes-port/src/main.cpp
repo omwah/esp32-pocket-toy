@@ -6,18 +6,20 @@
 #include "touch.h"
 #include "web_control.h"
 #include "board_config.h"
+#include "audio.h"
 
 TFT_eSPI display;
 CompositeTftDisplay backend(display);
 MonsterController monster(backend);
 Touch touch;
+Audio audio;
 bool wasTouched = false;
 bool sleepCandidate = false;
 uint32_t touchStartedAt = 0;
 int touchStartX = 0;
 int touchStartY = 0;
 int batteryPercent = -1;
-WebControl web(monster, batteryPercent);
+WebControl web(monster, audio, batteryPercent);
 bool controlsVisible = false;
 bool controlsDirty = false;
 bool flipped = false;
@@ -27,6 +29,24 @@ bool backgroundPending = true;
 uint8_t lastRenderedStyle = 0xFF;
 bool lastWifiConnected = false;
 bool lastProvisioning = false;
+bool lastMuted = false;
+
+void drawSoundIcon(int x, int y) {
+  uint16_t color = audio.hasSound() ? TFT_WHITE : TFT_LIGHTGREY;
+  // Speaker silhouette inspired by the supplied icon; the slash alone denotes mute.
+  display.fillRect(x - 11, y - 5, 5, 10, color);
+  display.fillTriangle(x - 6, y - 5, x + 1, y - 11, x + 1, y + 11, color);
+  for (int r = 6; r <= 11; r += 5) {
+    for (int dy = -r; dy <= r; ++dy) {
+      int dx = int(sqrtf(float(r * r - dy * dy)));
+      if (dx >= 0) display.drawPixel(x + dx + 1, y + dy, color);
+    }
+  }
+  if (audio.muted()) {
+    display.drawLine(x - 12, y - 13, x + 14, y + 13, TFT_RED);
+    display.drawLine(x - 11, y - 13, x + 15, y + 13, TFT_RED);
+  }
+}
 
 void sampleBattery() {
   analogSetPinAttenuation(BATTERY_ADC, ADC_11db);
@@ -46,6 +66,7 @@ void sampleBattery() {
 }
 
 void enterDeepSleep() {
+  audio.stop();
   web.stop();
   display.writecommand(TFT_DISPOFF);
   display.writecommand(0x10);
@@ -86,6 +107,7 @@ void drawControls() {
   display.setTextDatum(TC_DATUM);
   display.setTextColor(TFT_WHITE, TFT_DARKGREY);
   display.drawString(monster.styleName(monster.style()), SCREEN_W / 2, 5, 2);
+  drawSoundIcon(20, 14);
   if (web.provisioning()) {
     String setup = String(web.setupSsid()) + " / " + web.setupPassword();
     display.drawString(setup, SCREEN_W / 2, 32, 1);
@@ -150,6 +172,9 @@ void setup() {
     while (true) delay(1000);
   }
   if (!touch.begin()) Serial.println("touch unavailable; using autonomous gaze");
+  audio.begin();
+  audio.setPackage(monster.configPath());
+  lastMuted = audio.muted();
   web.begin();
   Serial.println("Monster Eyes composite TFT backend ready");
 }
@@ -179,6 +204,10 @@ void loop() {
     if (now - touchStartedAt < 300) {
       if (!controlsVisible) {
         showControls(now);
+      } else if (touchStartY < 55 && touchStartX < 45 && audio.present()) {
+        audio.setMuted(!audio.muted());
+        showControls(now);
+        controlsDirty = true;
       } else if (touchStartY < 55 && touchStartX >= SCREEN_W - 72 && touchStartX < SCREEN_W - 22) {
         showWifiIp = !showWifiIp;
         showControls(now);
@@ -207,6 +236,11 @@ void loop() {
 
   uint8_t styleBeforeWeb = monster.style();
   web.update(now);
+  audio.update(now);
+  if (audio.muted() != lastMuted) {
+    lastMuted = audio.muted();
+    controlsDirty = controlsVisible;
+  }
   if (web.connected() != lastWifiConnected || web.provisioning() != lastProvisioning) {
     lastWifiConnected = web.connected();
     lastProvisioning = web.provisioning();
@@ -218,6 +252,7 @@ void loop() {
   }
   if (controlsVisible && int32_t(now - controlsUntil) >= 0) hideControls();
   if (monster.style() != lastRenderedStyle) {
+    if (lastRenderedStyle != 0xFF) audio.setPackage(monster.configPath());
     lastRenderedStyle = monster.style();
     backgroundPending = true;
   }

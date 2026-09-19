@@ -26,6 +26,7 @@ public:
   uint8_t style() const { return _style; }
   uint8_t styleCount() const { return _packages.size(); }
   const char *styleName(uint8_t style) const;
+  const char *configPath() const { return _packages.empty() ? "" : _packages[_style].config.c_str(); }
 
 private:
   struct Package {

@@ -4,10 +4,11 @@
 #include <WebServer.h>
 #include <WiFi.h>
 #include "monster_controller.h"
+#include "audio.h"
 
 class WebControl {
 public:
-  WebControl(MonsterController &eyes, int &battery) : _eyes(eyes), _battery(battery), _server(80) {}
+  WebControl(MonsterController &eyes, Audio &audio, int &battery) : _eyes(eyes), _audio(audio), _battery(battery), _server(80) {}
   void begin(bool forceProvisioning = false);
   void update(uint32_t now);
   void stop();
@@ -21,6 +22,7 @@ public:
   String ipAddress() const { return connected() ? WiFi.localIP().toString() : WiFi.softAPIP().toString(); }
 private:
   MonsterController &_eyes;
+  Audio &_audio;
   int &_battery;
   WebServer _server;
   DNSServer _dns;

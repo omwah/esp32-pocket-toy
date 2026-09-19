@@ -26,6 +26,26 @@ Wi-Fi, and overlays reach feature parity with the production application.
 - Persists the current package and per-package enabled state in NVS. Navigation
   skips disabled packages and prevents disabling the final enabled package.
 - Accepts `previous` and `next` commands over the serial console.
+- Drives the ES8311 codec from a dedicated core-0 I2S task, discovers optional
+  package WAV sounds, and persists mute state. The overlay and web UI provide
+  mute controls; the overlay uses a speaker icon with a slash only when muted.
+
+Optional package sounds are declared relative to `config.eye`:
+
+```json
+"extensions": {
+  "purpleEsp32": {
+    "audio": {
+      "sounds": ["growl.wav", "bark.wav"],
+      "minInterval": 12000,
+      "maxInterval": 30000
+    }
+  }
+}
+```
+
+PCM WAV files may be mono or stereo, 8-bit or 16-bit. Playback uses the sample
+rate stored in each WAV file. Packages without this extension remain silent.
 
 The vendored Monster Eyes core is based on Adafruit Monster Eyes 1.0.0 commit
 `adc06f7` and retains its MIT license. Display backends unrelated to this board
@@ -48,10 +68,10 @@ micromamba run -n platformio pio run -d projects/uncanny-eyes -t upload
 
 ## Remaining migration work
 
-1. Convert the remaining locally modified styles into EYES package folders.
-2. Port audio and its mute/status controls.
-3. Add package ordering to the persistent registry.
-5. Add atomic web upload, validation, download, rename, and deletion.
-6. Add namespaced configuration extensions for sounds and local visual effects.
-7. Compare every migrated style against the production renderer before replacing
+1. Convert the remaining locally modified styles into EYES package folders and
+   associate their existing sounds.
+2. Add package ordering to the persistent registry.
+3. Add atomic web upload, validation, download, rename, and deletion.
+4. Add namespaced configuration extensions for local visual effects.
+5. Compare every migrated style against the production renderer before replacing
    it.
