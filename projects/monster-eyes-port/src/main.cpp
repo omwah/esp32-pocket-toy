@@ -79,7 +79,10 @@ void showControls(uint32_t now) {
 }
 
 void drawControls() {
-  display.fillRect(0, 0, SCREEN_W, 52, TFT_DARKGREY);
+  const bool hasStatusLine = web.provisioning() || showWifiIp;
+  const int headerHeight = hasStatusLine ? 52 : 28;
+  display.fillRect(0, 0, SCREEN_W, 56, monster.screenBackground());
+  display.fillRect(0, 0, SCREEN_W, headerHeight, TFT_DARKGREY);
   display.setTextDatum(TC_DATUM);
   display.setTextColor(TFT_WHITE, TFT_DARKGREY);
   display.drawString(monster.styleName(monster.style()), SCREEN_W / 2, 5, 2);
