@@ -5,6 +5,7 @@
 #include <WiFi.h>
 #include "monster_controller.h"
 #include "audio.h"
+#include "package_storage.h"
 
 class WebControl {
 public:
@@ -26,6 +27,8 @@ private:
   int &_battery;
   WebServer _server;
   DNSServer _dns;
+  PackageStorage _storage;
+  String _uploadError;
   bool _started=false, _provisioning=false, _configured=false, _cycle=false;
   uint32_t _interval=30000, _nextCycle=0, _connectStarted=0;
   String _serialLine, _apName, _apPassword;
@@ -34,5 +37,6 @@ private:
   void startServer();
   void handleProvision();
   void handleSerial();
+  void handleUploadData();
   String statusJson() const;
 };

@@ -16,6 +16,10 @@ public:
   bool styleEnabled(uint8_t style) const;
   bool setStyleEnabled(uint8_t style, bool enabled);
   uint8_t enabledStyleCount() const;
+  const char *packageId(uint8_t style) const;
+  int packageIndex(const String &id) const;
+  bool setPackageOrder(const String &csv);
+  bool reloadPackages(const String &preferredId = "");
   uint16_t screenBackground() const {
     return _eyes ? _eyes->config().eyelidColor : TFT_BLACK;
   }

@@ -24,6 +24,13 @@ MonsterController::~MonsterController() {
 const char *MonsterController::styleName(uint8_t style) const {
   return style < _packages.size() ? _packages[style].name.c_str() : "Unknown";
 }
+const char *MonsterController::packageId(uint8_t style) const {
+  return style < _packages.size() ? _packages[style].id.c_str() : "";
+}
+int MonsterController::packageIndex(const String &id) const {
+  for (size_t i=0;i<_packages.size();++i) if (_packages[i].id==id) return i;
+  return -1;
+}
 
 bool MonsterController::refreshPackages() {
   _packages.clear();
@@ -47,6 +54,25 @@ bool MonsterController::refreshPackages() {
   std::sort(_packages.begin(), _packages.end(), [](const Package &a, const Package &b) {
     return a.id.compareTo(b.id) < 0;
   });
+  Preferences orderPrefs;
+  orderPrefs.begin("monster-eyes", true);
+  String savedOrder = orderPrefs.getString("order", "");
+  orderPrefs.end();
+  std::vector<Package> ordered;
+  int start = 0;
+  while (start < savedOrder.length()) {
+    int end = savedOrder.indexOf(',', start); if (end < 0) end = savedOrder.length();
+    String id = savedOrder.substring(start, end);
+    for (auto it = _packages.begin(); it != _packages.end(); ++it) if (it->id == id) {
+      ordered.push_back(*it); _packages.erase(it); break;
+    }
+    start = end + 1;
+  }
+  ordered.insert(ordered.end(), _packages.begin(), _packages.end());
+  _packages.swap(ordered);
+  String reconciled;
+  for (const auto &p : _packages) { if (reconciled.length()) reconciled += ','; reconciled += p.id; }
+  if (reconciled != savedOrder) { orderPrefs.begin("monster-eyes", false); orderPrefs.putString("order", reconciled); orderPrefs.end(); }
   Serial.printf("discovered %u eye packages\n", unsigned(_packages.size()));
   return !_packages.empty();
 }
@@ -117,6 +143,34 @@ uint8_t MonsterController::enabledStyleCount() const {
   uint8_t count = 0;
   for (const auto &package : _packages) if (package.enabled) ++count;
   return count;
+}
+
+bool MonsterController::setPackageOrder(const String &csv) {
+  if (_packages.empty()) return false;
+  std::vector<Package> ordered;
+  int start=0;
+  while (start<csv.length()) {
+    int end=csv.indexOf(',',start); if(end<0) end=csv.length();
+    String id=csv.substring(start,end); int idx=packageIndex(id);
+    if(idx<0) return false;
+    for(const auto&p:ordered) if(p.id==id) return false;
+    ordered.push_back(_packages[idx]); start=end+1;
+  }
+  if(ordered.size()!=_packages.size()) return false;
+  String current=_packages[_style].id; _packages.swap(ordered); _style=packageIndex(current);
+  Preferences prefs; prefs.begin("monster-eyes",false); prefs.putString("order",csv); prefs.end();
+  return true;
+}
+
+bool MonsterController::reloadPackages(const String &preferredId) {
+  String id=preferredId.length()?preferredId:(_packages.empty()?String():_packages[_style].id);
+  if(!refreshPackages()) return false;
+  Preferences prefs; prefs.begin("monster-eyes",true);
+  for(auto &p:_packages) p.enabled=prefs.getBool(enabledKey(p.id).c_str(),true);
+  prefs.end();
+  int idx=packageIndex(id); if(idx<0) idx=0;
+  if(!enabledStyleCount()) _packages[idx].enabled=true;
+  return setStyle(idx);
 }
 
 bool MonsterController::setStyleEnabled(uint8_t style, bool enabled) {

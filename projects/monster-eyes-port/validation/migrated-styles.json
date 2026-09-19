@@ -1,0 +1,30 @@
+{
+  "productionStyleCount": 23,
+  "renderer": "Adafruit Monster Eyes 1.0.0",
+  "acceptance": "Package assets load, standard configuration is valid, controls remain functional, and intentional renderer differences are accepted.",
+  "styles": [
+    {"id":"hazel","production":"Hazel","status":"pass","notes":"Standard Monster Eyes package."},
+    {"id":"dragon","production":"Dragon","status":"pass","notes":"Converted artwork; standard vertical slit."},
+    {"id":"no_sclera","production":"No Sclera","status":"pass","notes":"Converted artwork."},
+    {"id":"goat","production":"Goat / Krampus","status":"pass","notes":"Converted artwork; standard slit orientation accepted."},
+    {"id":"newt","production":"Newt","status":"pass","notes":"Converted artwork; standard vertical slit."},
+    {"id":"terminator","production":"Terminator","status":"pass","notes":"Converted artwork and CC0 sound."},
+    {"id":"cat","production":"Cartoon Cat","status":"pass","notes":"Converted artwork; standard vertical slit."},
+    {"id":"owl","production":"Owl","status":"pass","notes":"Converted artwork with round opening."},
+    {"id":"nauga","production":"Nauga","status":"pass","notes":"Converted artwork."},
+    {"id":"deer","production":"Realistic Deer","status":"pass","notes":"Painted horizontal pupil approximation; radius tuning deferred."},
+    {"id":"big_anime","production":"Big Anime","status":"pass","notes":"Standard renderer accepted without production-only glints."},
+    {"id":"big_blue","production":"Big Blue","status":"pass","notes":"Upstream package."},
+    {"id":"demon","production":"Demon","status":"pass","notes":"Upstream package."},
+    {"id":"doom-red","production":"Doom Red","status":"pass","notes":"Upstream package."},
+    {"id":"doom-spiral","production":"Doom Spiral","status":"pass","notes":"Upstream package."},
+    {"id":"fish_eyes","production":"Fish","status":"pass","notes":"Upstream package."},
+    {"id":"fizzgig","production":"Fizzgig","status":"pass","notes":"Upstream package with package-local sounds."},
+    {"id":"hypno_red","production":"Hypno Red","status":"pass","notes":"Upstream package."},
+    {"id":"reflection","production":"Reflection","status":"pass","notes":"Upstream package."},
+    {"id":"skull","production":"Skull","status":"pass","notes":"Upstream package."},
+    {"id":"snake_green","production":"Snake Green","status":"pass","notes":"Upstream package."},
+    {"id":"spikes","production":"Spikes","status":"pass","notes":"Upstream package."},
+    {"id":"toonstripe","production":"Toon Stripe","status":"pass","notes":"Upstream package."}
+  ]
+}
