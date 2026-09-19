@@ -602,10 +602,21 @@ bool Adafruit_Monster_Eyes::begin(void) {
   // single framebuffer that is half the width, so a config asking for more
   // gets quietly reduced rather than overlapping its neighbour.
   const int maxSize = _display->maxEyeSize();
-  if (_settings.displaySize <= 0)
-    _settings.displaySize = maxSize;
-  if (_settings.displaySize > maxSize)
-    _settings.displaySize = maxSize;
+  // Legacy M4 EYES configs omit displaySize but express geometry in the
+  // original 240px coordinate space. Detect that from an oversized radius.
+  const int sourceSize = _settings.displaySize > 0 ? _settings.displaySize
+      : (_settings.eyeRadius > maxSize * 3 / 4 ? 240 : maxSize);
+  if (sourceSize > maxSize) {
+    auto scalePixels = [sourceSize, maxSize](int value) {
+      if (value <= 0) return value;
+      return max(1, (value * maxSize + sourceSize / 2) / sourceSize);
+    };
+    _settings.eyeRadius = scalePixels(_settings.eyeRadius);
+    _settings.irisRadius = scalePixels(_settings.irisRadius);
+    _settings.slitPupilRadius = scalePixels(_settings.slitPupilRadius);
+    _settings.fixate = scalePixels(_settings.fixate);
+  }
+  _settings.displaySize = min(sourceSize, maxSize);
   finalizeSettings(); // Re-derive coverage for the final size
 
   // pupilMin/pupilMax are the inverse of the irisMin/irisRange the renderer

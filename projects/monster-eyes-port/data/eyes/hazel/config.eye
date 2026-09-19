@@ -1,8 +1,6 @@
 {
   "boopThreshold" : 17500, // lower = more sensitive
-  "displaySize"   : 128,
-  "eyeRadius"     : 62,
-  "irisRadius"    : 40,
+  "eyeRadius"     : 125,
   "eyelidIndex"   : "0x00", // From table: learn.adafruit.com/assets/61921
   "pupilColor"    : [ 0, 0, 0 ],
   "backColor"     : [ 140, 40, 20 ],

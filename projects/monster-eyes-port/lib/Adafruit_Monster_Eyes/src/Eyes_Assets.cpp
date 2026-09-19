@@ -550,11 +550,28 @@ static int32_t dwim(JsonVariantConst v, int32_t def = 0) {
   return def;
 }
 
-static void copyStr(char *dst, JsonVariantConst v) {
-  if (v.is<const char *>()) {
-    strncpy(dst, v.as<const char *>(), EYES_PATH_MAX - 1);
+static void copyAssetPath(char *dst, JsonVariantConst v, const char *configFile) {
+  dst[0] = 0;
+  if (!v.is<const char *>()) return;
+  const char *asset = v.as<const char *>();
+  if (!asset || !asset[0]) return;
+  if (asset[0] == '/') {
+    strncpy(dst, asset, EYES_PATH_MAX - 1);
     dst[EYES_PATH_MAX - 1] = 0;
+    return;
   }
+  const char *slash = strrchr(configFile, '/');
+  int dirLength = slash ? slash - configFile : 0;
+  const char *dirName = slash;
+  while (dirName && dirName > configFile && dirName[-1] != '/') --dirName;
+  const char *assetSlash = strchr(asset, '/');
+  // Standard Adafruit configs say "hazel/iris.bmp". If config.eye itself is
+  // already inside a directory named hazel, avoid duplicating that component.
+  if (dirName && assetSlash && size_t(assetSlash - asset) == size_t(slash - dirName) &&
+      !strncmp(asset, dirName, assetSlash - asset)) {
+    asset = assetSlash + 1;
+  }
+  snprintf(dst, EYES_PATH_MAX, "%.*s/%s", dirLength, configFile, asset);
 }
 
 // Apply one JSON object: the document root, or a per-eye sub-object on top.
@@ -635,10 +652,10 @@ void Adafruit_Monster_Eyes::applyConfigRoot(const void *variantPtr) {
   if (v.is<bool>() || v.is<int>())
     _settings.eyelidMirror = v.as<bool>();
 
-  copyStr(_settings.irisFile, o["irisTexture"]);
-  copyStr(_settings.scleraFile, o["scleraTexture"]);
-  copyStr(_settings.upperFile, o["upperEyelid"]);
-  copyStr(_settings.lowerFile, o["lowerEyelid"]);
+  copyAssetPath(_settings.irisFile, o["irisTexture"], _configFile);
+  copyAssetPath(_settings.scleraFile, o["scleraTexture"], _configFile);
+  copyAssetPath(_settings.upperFile, o["upperEyelid"], _configFile);
+  copyAssetPath(_settings.lowerFile, o["lowerEyelid"], _configFile);
 }
 
 // Only the values that may legitimately differ between two eyes. Geometry and

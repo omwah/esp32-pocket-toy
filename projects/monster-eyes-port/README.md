@@ -10,9 +10,13 @@ Wi-Fi, and overlays reach feature parity with the production application.
 - Implements a `TFT_eSPI` stripe backend for two 128x128 eyes on one 320x240
   ILI9341 panel.
 - Mounts the existing PlatformIO FATFS partition through `FFat`.
-- Reads and applies `/config.eye` through the Monster Eyes JSON parser.
+- Reads and applies package `config.eye` files through the Monster Eyes JSON parser.
 - Loads standard 24-bit texture BMPs and 1-bit eyelid BMPs from FATFS.
-- Boots with a scaled Hazel EYES package for hardware validation.
+- Includes all 14 upstream M4 EYES packages, scaled for 128x128 eye regions.
+- Reconstructs the renderer safely when switching packages at runtime.
+- Tracks touch position and supports package navigation: tap the left or right
+  third of the screen for previous/next, or tap the center to blink.
+- Accepts `previous` and `next` commands over the serial console.
 
 The vendored Monster Eyes core is based on Adafruit Monster Eyes 1.0.0 commit
 `adc06f7` and retains its MIT license. Display backends unrelated to this board
@@ -35,10 +39,9 @@ micromamba run -n platformio pio run -d projects/uncanny-eyes -t upload
 
 ## Remaining migration work
 
-1. Convert all bundled and locally modified styles into EYES package folders.
-2. Add a package registry and safe runtime renderer reconstruction when styles
-   change.
-3. Port touch gaze, controls, display flipping, audio, battery, sleep, and Wi-Fi.
+1. Convert the remaining locally modified styles into EYES package folders.
+2. Replace the compiled package list with a persistent filesystem registry.
+3. Port the full controls overlay, display flipping, audio, battery, sleep, and Wi-Fi.
 4. Restore persistent enabled/disabled filtering and cycle order.
 5. Add atomic web upload, validation, download, rename, and deletion.
 6. Add namespaced configuration extensions for sounds and local visual effects.

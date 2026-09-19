@@ -1,16 +1,17 @@
 #include <Arduino.h>
 #include <TFT_eSPI.h>
-#include <Adafruit_Monster_Eyes.h>
 #include "composite_tft_display.h"
+#include "monster_controller.h"
 #include "touch.h"
 #include "board_config.h"
 
 TFT_eSPI display;
 CompositeTftDisplay backend(display);
-Adafruit_Monster_Eyes monster(&backend);
+MonsterController monster(backend);
 Touch touch;
 bool wasTouched = false;
 uint32_t touchStartedAt = 0;
+int touchStartX = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -23,17 +24,9 @@ void setup() {
   display.setSwapBytes(true);
   display.fillScreen(TFT_BLACK);
 
-  monster.setVerbose(Serial);
-  monster.setStorageEnabled(true);
-  monster.setDriveModeEnabled(false);
-  monster.setConfigFile("/config.eye");
-  monster.setEyeSize(128);
-  monster.setEyeRadius(62);
-  monster.setIrisRadius(40);
-  monster.setSelfTest(false);
   if (!monster.begin()) {
     display.setTextColor(TFT_RED, TFT_BLACK);
-    display.drawString(monster.errorString() ? monster.errorString() : "Monster Eyes failed", 4, 4, 2);
+    display.drawString("Monster Eyes failed", 4, 4, 2);
     while (true) delay(1000);
   }
   if (!touch.begin()) Serial.println("touch unavailable; using autonomous gaze");
@@ -45,7 +38,7 @@ void loop() {
   bool touched = touch.read(point) > 0;
   uint32_t now = millis();
   if (touched) {
-    if (!wasTouched) touchStartedAt = now;
+    if (!wasTouched) { touchStartedAt = now; touchStartX = point.x; }
     // This backend's map-space axes are opposite the panel's touch axes.
     float x = constrain((SCREEN_W * 0.5f - point.x) / (SCREEN_W * 0.5f), -1.0f, 1.0f);
     // Use screen-down-positive touch input for the map-space Y coordinate.
@@ -53,8 +46,23 @@ void loop() {
     monster.setGaze(x, y);
   } else if (wasTouched) {
     monster.releaseGaze();
-    if (now - touchStartedAt < 300) monster.blink();
+    if (now - touchStartedAt < 300) {
+      if (touchStartX < SCREEN_W / 3) monster.previousStyle();
+      else if (touchStartX > SCREEN_W * 2 / 3) monster.nextStyle();
+      else monster.blink();
+    }
   }
   wasTouched = touched;
+
+  static String command;
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\n') {
+      command.trim();
+      if (command == "next") monster.nextStyle();
+      else if (command == "previous") monster.previousStyle();
+      command = "";
+    } else if (c != '\r' && command.length() < 32) command += c;
+  }
   monster.animate();
 }
