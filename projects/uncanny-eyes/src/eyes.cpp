@@ -72,6 +72,7 @@ void Eyes::update(uint32_t nowMs, bool touched, float touchX, float touchY) {
   }
   _touchWasDown = touched;
 
+  if (nowMs - _lastBatterySample >= 30000) sampleBattery();
   if (!_blinkStart && nowMs >= _nextBlink) _blinkStart = nowMs;
   if (_blinkStart && nowMs - _blinkStart >= 240) {
     _blinkStart = 0;
@@ -81,8 +82,13 @@ void Eyes::update(uint32_t nowMs, bool touched, float touchX, float touchY) {
 }
 
 const char *Eyes::styleName() const { return EYE_ASSETS[_style].name; }
+const char *Eyes::styleNameAt(uint8_t style) const {
+  return style < EYE_ASSET_COUNT ? EYE_ASSETS[style].name : "Unknown";
+}
+uint8_t Eyes::styleCount() const { return EYE_ASSET_COUNT; }
 
 void Eyes::sampleBattery() {
+  _lastBatterySample = millis();
   analogSetPinAttenuation(BATTERY_ADC, ADC_11db);
   uint32_t totalMv = 0;
   for (int i = 0; i < 16; ++i) totalMv += analogReadMilliVolts(BATTERY_ADC);
@@ -118,6 +124,13 @@ void Eyes::nextStyle() {
 
 void Eyes::previousStyle() {
   _style = (_style + EYE_ASSET_COUNT - 1) % EYE_ASSET_COUNT;
+  showControls();
+  _blinkStart = _styleChangedAt;
+}
+
+void Eyes::setStyle(uint8_t style) {
+  if (style >= EYE_ASSET_COUNT || style == _style) return;
+  _style = style;
   showControls();
   _blinkStart = _styleChangedAt;
 }
@@ -250,7 +263,10 @@ void Eyes::drawEye(int cx, float blink) {
   }
 }
 
-void Eyes::draw(bool soundPresent, bool muted) {
+void Eyes::draw(bool soundPresent, bool muted, bool wifiConfigured,
+                bool wifiConnected, bool provisioning, const char *setupSsid,
+                const char *setupPassword, bool showIpAddress,
+                const char *ipAddress) {
   _frame->fillSprite(rgb(7, 3, 10));
   float blink = blinkAmount(millis());
   drawEye(EYE_X[0], blink);
@@ -287,6 +303,38 @@ void Eyes::draw(bool soundPresent, bool muted) {
     _frame->setTextDatum(TR_DATUM);
     _frame->setTextColor(batteryColour, rgb(7, 3, 10));
     _frame->drawString(battery, SCREEN_W - 4, 5, 2);
+
+    // Compact Wi-Fi glyph immediately left of the battery percentage.
+    uint16_t wifiColour = wifiConnected ? TFT_GREEN :
+      (wifiConfigured ? TFT_YELLOW : TFT_RED);
+    const int wx = SCREEN_W - 55, wy = 18;
+    // Two thick, rounded-looking concentric bands and a round centre point,
+    // matching the familiar solid Wi-Fi mark rather than angular chevrons.
+    for (int dy = -15; dy <= 0; ++dy) {
+      for (int dx = -15; dx <= 15; ++dx) {
+        int r2 = dx * dx + dy * dy;
+        bool outer = r2 >= 121 && r2 <= 196 && dy < -abs(dx) / 4;
+        bool inner = r2 >= 36 && r2 <= 81 && dy < -abs(dx) / 4;
+        if (outer || inner) _frame->drawPixel(wx + dx, wy + dy, wifiColour);
+      }
+    }
+    _frame->fillCircle(wx, wy, 3, wifiColour);
+    if (!wifiConfigured) {
+      _frame->drawLine(wx - 13, wy - 14, wx + 12, wy + 2, TFT_RED);
+      _frame->drawLine(wx - 12, wy - 14, wx + 13, wy + 2, TFT_RED);
+    }
+  }
+
+  // Provisioning details remain visible even when the touch controls time out.
+  if (provisioning || showIpAddress) {
+    char status[64];
+    if (provisioning)
+      snprintf(status, sizeof(status), "%s  %s", setupSsid, setupPassword);
+    else
+      snprintf(status, sizeof(status), "IP: %s", ipAddress);
+    _frame->setTextDatum(TC_DATUM);
+    _frame->setTextColor(TFT_CYAN, rgb(7, 3, 10));
+    _frame->drawString(status, SCREEN_W / 2, 27, 1);
   }
   _frame->pushSprite(0, 0);
 }

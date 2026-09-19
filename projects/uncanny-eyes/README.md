@@ -21,6 +21,52 @@ micromamba run -n platformio pio run -d projects/uncanny-eyes -t upload
 The upload port is pinned in `platformio.ini`. Board details and recovery
 instructions are in [`../../HARDWARE.md`](../../HARDWARE.md).
 
+## Wi-Fi setup and web controls
+
+Wi-Fi credentials are provisioned at runtime and stored in the ESP32's NVS.
+They are not compiled into the firmware or kept in this repository.
+
+On first boot, the device creates an access point named `UncannyEyes-XXXXXX`.
+Use PlatformIO's serial monitor to read its device-specific password and setup
+address:
+
+```sh
+micromamba run -n platformio pio device monitor -d projects/uncanny-eyes
+```
+
+The setup SSID and password also remain visible on the display's second status
+line while provisioning is active. Join that access point, open the displayed
+address (normally `http://192.168.4.1/`), and submit the local Wi-Fi network
+name and password. The device saves them, restarts, and removes the setup line.
+Once connected, the serial monitor reports its network address. Hold
+the BOOT button while resetting to reopen provisioning mode.
+
+The web interface can select a style, move to the previous or next style,
+mute/unmute audio, and enable automatic style cycling with a configurable
+interval. It reports the active Manual/Cycle mode, current style, battery,
+Wi-Fi state, and external-power state. External power is reported as `unknown`
+until a board signal is verified with
+[`../power-diagnostics/`](../power-diagnostics/).
+
+Serial commands can be entered in the PlatformIO monitor:
+
+```text
+wifi status
+wifi provision
+wifi reconnect
+wifi clear
+confirm wifi clear
+```
+
+`wifi clear` deliberately requires the confirmation command. Provisioning
+credentials are never printed or returned by the web API. NVS is persistent but
+is not encrypted by default, so someone with physical flash access may still be
+able to recover stored credentials. The HTTP interface is intended for a
+trusted local network. When the touch controls are visible, a Wi-Fi icon appears
+left of the battery percentage: green means connected, yellow means configured
+but disconnected, and a red crossed icon means not yet provisioned. Tap the
+Wi-Fi icon to toggle the device IP address on the second status line.
+
 ## Controls
 
 - No input: autonomous gaze and blinking

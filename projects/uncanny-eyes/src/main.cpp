@@ -6,19 +6,23 @@
 #include "touch.h"
 #include "audio.h"
 #include "config.h"
+#include "web_control.h"
 
 TFT_eSPI display;
 Eyes eyes;
 Touch touch;
 Audio audio;
+WebControl web(eyes, audio);
 uint32_t nextSoundAt = 0;
 bool pressActive = false;
 TouchPoint pressStart{};
 uint32_t pressStartedAt = 0;
 bool sleepCandidate = false;
 bool flipped = false;
+bool showWifiIp = false;
 
 void enterDeepSleep() {
+  web.stop();
   audio.stop();
   display.writecommand(TFT_DISPOFF);
   display.writecommand(0x10); // ILI9341 sleep-in
@@ -51,6 +55,9 @@ void setup() {
   }
   if (!touch.begin()) Serial.println("touch unavailable; using autonomous gaze");
   audio.begin();
+  pinMode(0, INPUT_PULLUP);
+  delay(20);
+  web.begin(digitalRead(0) == LOW); // Hold BOOT during startup to provision Wi-Fi.
   nextSoundAt = millis() + random(15000, 45000);
   Serial.printf("eyes ready: psram_free=%u\n", (unsigned)ESP.getFreePsram());
 }
@@ -75,8 +82,13 @@ void loop() {
       } else if (pressStart.x <= 60 && pressStart.y <= 38 && audio.present()) {
         audio.setMuted(!audio.muted());
         eyes.showControls();
+      } else if (pressStart.x >= SCREEN_W - 78 && pressStart.x <= SCREEN_W - 38 &&
+                 pressStart.y <= 38) {
+        showWifiIp = !showWifiIp;
+        eyes.showControls();
       } else if (pressStart.x <= 65 && pressStart.y >= SCREEN_H - 45) {
         eyes.previousStyle();
+        web.manualStyleSelected();
         nextSoundAt = now + random(8000, 20000);
       } else if (pressStart.x >= SCREEN_W / 2 - 40 &&
                  pressStart.x <= SCREEN_W / 2 + 40 &&
@@ -87,6 +99,7 @@ void loop() {
         eyes.showControls();
       } else if (pressStart.x >= SCREEN_W - 65 && pressStart.y >= SCREEN_H - 45) {
         eyes.nextStyle();
+        web.manualStyleSelected();
         nextSoundAt = now + random(8000, 20000);
       } else {
         eyes.showControls();
@@ -103,12 +116,18 @@ void loop() {
     if (sleepCandidate && now - pressStartedAt >= 2000) enterDeepSleep();
   }
 
+  uint8_t styleBeforeWeb = eyes.style();
+  web.update(now);
+  if (eyes.style() != styleBeforeWeb) nextSoundAt = now + random(8000, 20000);
   eyes.update(now, down, point.x, point.y);
   if ((int32_t)(now - nextSoundAt) >= 0) {
     audio.playStyle(eyes.style());
     nextSoundAt = now + random(15000, 45000);
   }
   audio.update();
-  eyes.draw(audio.present(), audio.muted());
+  String wifiIp = showWifiIp ? web.ipAddress() : String();
+  eyes.draw(audio.present(), audio.muted(), web.configured(), web.connected(),
+            web.provisioning(), web.setupSsid(), web.setupPassword(), showWifiIp,
+            wifiIp.c_str());
   delay(1);
 }
