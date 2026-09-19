@@ -30,8 +30,10 @@ Wi-Fi, and overlays reach feature parity with the production application.
   enabled package. The web UI provides ordering controls.
 - Accepts `previous` and `next` commands over the serial console.
 - Drives the ES8311 codec from a dedicated core-0 I2S task, discovers optional
-  package WAV sounds, and persists mute state. The overlay and web UI provide
-  mute controls; the overlay uses a speaker icon with a slash only when muted.
+  package WAV sounds, and persists mute state and output level. The overlay and
+  web UI provide mute controls; the overlay uses a speaker icon with a slash
+  only when muted. The web UI adds a volume slider covering -40 dB to 0 dB of
+  ES8311 DAC gain, with 0% silent; the level is stored in NVS.
 
 Optional package sounds are declared relative to `config.eye`:
 
@@ -47,6 +49,31 @@ Optional package sounds are declared relative to `config.eye`:
 
 PCM WAV files may be mono or stereo, 8-bit or 16-bit. Playback uses the sample
 rate stored in each WAV file. Packages without this extension remain silent.
+
+## Web interface
+
+The web UI source is `web/index.html`, `web/style.css`, and `web/app.js` —
+ordinary files that can be opened in a browser and edited normally. They are
+not what ships: `tools/build_web.py` runs as a PlatformIO `pre:` script, inlines
+the stylesheet and script into a single document, gzips it, and writes
+`generated/web_page.h`, which the firmware serves from flash with
+`Content-Encoding: gzip`. One document matters because the web server is polled
+from the render loop, so extra asset requests would stall the eye animation.
+
+To work on the layout without flashing anything, run
+
+```sh
+python projects/monster-eyes-port/tools/serve_web.py
+```
+
+and open `http://localhost:8000`. It serves `web/` alongside a fake device API.
+
+The page has two tabs. Controls holds status, style selection, audio (mute and
+volume), cycling, and Wi-Fi setup. Packages holds the package list and the
+upload form, so the default view stays short on a phone.
+
+Audio is controlled through `POST /api/audio/mute` (`muted`) and
+`POST /api/audio/volume` (`volume`, 0-100).
 
 ## Web package management
 

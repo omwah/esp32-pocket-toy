@@ -4,3 +4,5 @@
 projects/uncanny-eyes/generated/*
 !projects/uncanny-eyes/generated/.gitkeep
 projects/uncanny-eyes/data/
+projects/monster-eyes-port/generated/*
+!projects/monster-eyes-port/generated/.gitkeep

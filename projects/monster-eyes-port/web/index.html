@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang=en>
+<head>
+  <meta charset=utf-8>
+  <meta name=viewport content="width=device-width,initial-scale=1">
+  <title>Monster Eyes</title>
+  <link rel=stylesheet href=style.css>
+</head>
+<body>
+
+<h1>Monster Eyes</h1>
+
+<nav class=tabs role=tablist>
+  <button id=tab-c role=tab aria-controls=panel-c aria-selected=true onclick="show('c')">Controls</button>
+  <button id=tab-p role=tab aria-controls=panel-p aria-selected=false onclick="show('p')">Packages</button>
+</nav>
+
+<div id=panel-c role=tabpanel aria-labelledby=tab-c>
+
+  <section id=status>Connecting…</section>
+
+  <section>
+    <h2>Style</h2>
+    <select id=style class=wide aria-label="Current style"></select>
+    <div class=grid>
+      <button onclick="post('/api/style/previous')">Previous</button>
+      <button onclick="post('/api/style/next')">Next</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Audio</h2>
+    <div class=vol>
+      <button id=mute onclick="post('/api/audio/mute',{muted:!s.muted})">Mute</button>
+      <input id=volume type=range min=0 max=100 step=5 value=70 aria-label=Volume>
+      <span id=volpct class=tag>70%</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Cycle</h2>
+    <div class=cyc>
+      <button id=cycle onclick=toggleCycle()>Enable cycle</button>
+      <input id=interval type=number min=5 max=3600 value=30 aria-label="Cycle seconds">
+      <button class=ghost onclick=saveCycle()>Apply</button>
+    </div>
+  </section>
+
+  <section id=setup hidden>
+    <h2>Wi-Fi setup</h2>
+    <form method=post action=/provision>
+      <input name=ssid class=wide placeholder="Network name" required>
+      <input name=password class=wide type=password placeholder=Password>
+      <button class=wide type=submit>Connect and save</button>
+    </form>
+    <p class=note>Credentials are stored in device NVS, not in firmware.</p>
+  </section>
+
+</div>
+
+<div id=panel-p role=tabpanel aria-labelledby=tab-p hidden>
+
+  <section>
+    <h2>Packages</h2>
+    <div id=eyes></div>
+    <p class=note>Disabled packages are skipped by manual navigation and cycle
+      mode. The active package cannot be renamed or deleted, and at least one
+      must remain.</p>
+  </section>
+
+  <section>
+    <h2>Add or replace a package</h2>
+    <input id=packageId class=wide placeholder="Package ID">
+    <input id=packageFiles class=wide type=file multiple>
+    <button class=wide onclick=uploadPackage()>Upload</button>
+    <p id=uploadNote class=note>Letters, numbers, underscore, hyphen.
+      1 MiB per file, 3 MiB per package.</p>
+  </section>
+
+</div>
+
+<script src=app.js></script>
+</body>
+</html>

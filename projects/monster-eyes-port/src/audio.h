@@ -11,6 +11,8 @@ public:
   void update(uint32_t now);
   void setMuted(bool muted);
   bool muted() const { return _muted; }
+  void setVolume(uint8_t percent);
+  uint8_t volume() const { return _volume; }
   bool present() const { return _ok; }
   bool hasSound() const { return !_sounds.empty(); }
   void stop();
@@ -23,6 +25,7 @@ private:
   void schedule(uint32_t now);
 
   bool _ok=false, _muted=false;
+  uint8_t _volume=70;
   TaskHandle_t _task=nullptr;
   portMUX_TYPE _mux=portMUX_INITIALIZER_UNLOCKED;
   std::vector<String> _sounds;
