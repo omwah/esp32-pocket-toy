@@ -8,6 +8,7 @@ public:
   bool begin(TFT_eSPI &display);
   void update(uint32_t nowMs, bool touched, float touchX, float touchY);
   void nextStyle();
+  uint8_t style() const { return _style; }
   void draw();
 private:
   TFT_eSPI *_display = nullptr;
@@ -19,9 +20,11 @@ private:
   bool _touchWasDown = false;
   uint8_t _style = 0;
   uint32_t _styleChangedAt = 0;
+  int _batteryPercent = -1;
 
   float blinkAmount(uint32_t nowMs) const;
   void chooseTarget(uint32_t nowMs);
   void drawEye(int centreX, float blink);
+  void sampleBattery();
   const char *styleName() const;
 };

@@ -27,6 +27,7 @@ bool Eyes::begin(TFT_eSPI &display) {
   _nextBlink = now + random(1200, 3500);
   _holdEnd = now;
   chooseTarget(now);
+  sampleBattery();
   return true;
 }
 
@@ -82,10 +83,34 @@ void Eyes::update(uint32_t nowMs, bool touched, float touchX, float touchY) {
 
 const char *Eyes::styleName() const { return EYE_ASSETS[_style].name; }
 
+void Eyes::sampleBattery() {
+  analogSetPinAttenuation(BATTERY_ADC, ADC_11db);
+  uint32_t totalMv = 0;
+  for (int i = 0; i < 16; ++i) totalMv += analogReadMilliVolts(BATTERY_ADC);
+  int batteryMv = (totalMv / 16) * 2; // R14/R15 1:1 voltage divider
+  if (batteryMv < 2500) { _batteryPercent = -1; return; } // no battery
+
+  // Approximate a resting single-cell LiPo discharge curve. A percentage is
+  // inherently approximate while charging or under load, but more useful than
+  // treating voltage as linear between 3.3 and 4.2 V.
+  static const int mv[]  = {3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 4100, 4200};
+  static const int pct[] = {   0,    5,   10,   15,   30,   50,   65,   80,   90,  100};
+  if (batteryMv <= mv[0]) _batteryPercent = 0;
+  else if (batteryMv >= mv[9]) _batteryPercent = 100;
+  else for (int i = 1; i < 10; ++i) {
+    if (batteryMv <= mv[i]) {
+      _batteryPercent = pct[i-1] + (batteryMv - mv[i-1]) *
+                        (pct[i] - pct[i-1]) / (mv[i] - mv[i-1]);
+      break;
+    }
+  }
+}
+
 void Eyes::nextStyle() {
   _style = (_style + 1) % EYE_ASSET_COUNT;
   _styleChangedAt = millis();
   _blinkStart = _styleChangedAt;
+  sampleBattery();
 }
 
 void Eyes::drawEye(int cx, float blink) {
@@ -180,6 +205,16 @@ void Eyes::draw() {
     _frame->setTextDatum(TC_DATUM);
     _frame->setTextColor(TFT_WHITE, rgb(7, 3, 10));
     _frame->drawString(styleName(), SCREEN_W / 2, 5, 2);
+
+    char battery[8];
+    if (_batteryPercent < 0) snprintf(battery, sizeof(battery), "--%%");
+    else snprintf(battery, sizeof(battery), "%d%%", _batteryPercent);
+    uint16_t batteryColour = _batteryPercent < 0 ? TFT_LIGHTGREY :
+      (_batteryPercent <= 20 ? TFT_RED :
+       (_batteryPercent <= 50 ? TFT_YELLOW : TFT_GREEN));
+    _frame->setTextDatum(TR_DATUM);
+    _frame->setTextColor(batteryColour, rgb(7, 3, 10));
+    _frame->drawString(battery, SCREEN_W - 4, 5, 2);
   }
   _frame->pushSprite(0, 0);
 }

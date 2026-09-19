@@ -17,6 +17,7 @@ engagement and a closer shot pushed into part of it.
 | Two fingers, pinch | Zoom (0.16x to 4.5x) |
 | Two fingers, drag | Pan while zooming |
 | No touch for 6 s | Automatic camera resumes |
+| Press and hold without moving for 2 s | Deep sleep; press BOOT to wake |
 
 ## Build and flash
 

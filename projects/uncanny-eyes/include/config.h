@@ -10,6 +10,15 @@ constexpr int TOUCH_SDA = 16;
 constexpr int TOUCH_SCL = 15;
 constexpr int TOUCH_RST = 18;
 constexpr int TOUCH_INT = 17;
+constexpr int BATTERY_ADC = 9; // 1:1 divider; measured voltage is ADC x 2
+
+constexpr uint8_t ES8311_I2C_ADDR = 0x18;
+constexpr int SPK_ENABLE = 1; // active low
+constexpr int I2S_MCLK = 4;
+constexpr int I2S_BCLK = 5;
+constexpr int I2S_LRCK = 7;
+constexpr int I2S_DOUT = 8;
+constexpr int AUDIO_RATE = 16000;
 
 constexpr int EYE_Y = 120;
 constexpr int EYE_X[2] = {82, 238};

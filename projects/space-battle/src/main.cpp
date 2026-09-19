@@ -8,6 +8,7 @@
 // documented in DEVICE.md.
 #include <Arduino.h>
 #include <TFT_eSPI.h>
+#include <esp_sleep.h>
 
 #include "audio.h"
 #include "battle.h"
@@ -33,6 +34,22 @@ bool     pressIsTap    = false;   // still within slop and time budget
 Vec2     pressStart{0, 0};
 uint32_t pressStartMs  = 0;
 uint32_t buttonShownMs = 0;       // when the control was last made visible
+bool     sleepCandidate = false;
+
+void enterDeepSleep() {
+  tft.writecommand(TFT_DISPOFF);
+  tft.writecommand(0x10); // ILI9341 sleep-in
+  digitalWrite(TFT_BL, LOW);
+  pinMode(1, OUTPUT);       // audio amplifier disable, active high
+  digitalWrite(1, HIGH);
+  pinMode(TOUCH_RST, OUTPUT);
+  digitalWrite(TOUCH_RST, LOW);
+
+  pinMode(0, INPUT_PULLUP); // BOOT button wakes on a low level
+  esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0);
+  delay(50);
+  esp_deep_sleep_start();
+}
 
 bool inMuteButton(const Vec2 &p) {
   float dx = p.x - MUTE_ICON_X, dy = p.y - MUTE_ICON_Y;
@@ -91,14 +108,16 @@ void loop() {
       pressActive  = true;
       pressStart   = p0;
       pressStartMs = nowMs;
+      sleepCandidate = (n == 1);
       // Only a single-finger press starting on the button can be a tap.
       pressIsTap   = (n == 1) && inMuteButton(p0);
-    } else if (pressIsTap) {
-      // Disqualify as soon as it moves too far, becomes a second finger, or
-      // runs too long -- at which point it is a pan and belongs to the camera.
-      if (n > 1 || (p0 - pressStart).len() > TAP_SLOP_PX ||
-          nowMs - pressStartMs > TAP_MAX_MS)
+    } else {
+      float travel = (p0 - pressStart).len();
+      if (n > 1 || travel > TAP_SLOP_PX) sleepCandidate = false;
+      if (pressIsTap && (n > 1 || travel > TAP_SLOP_PX ||
+                         nowMs - pressStartMs > TAP_MAX_MS))
         pressIsTap = false;
+      if (sleepCandidate && nowMs - pressStartMs >= 2000) enterDeepSleep();
     }
 
     // The camera sees the press either way. A tap moves it imperceptibly, and
@@ -112,6 +131,7 @@ void loop() {
     }
     pressActive = false;
     pressIsTap  = false;
+    sleepCandidate = false;
     camera.onRelease(nowMs);
   }
 

@@ -25,13 +25,19 @@ instructions are in [`../../HARDWARE.md`](../../HARDWARE.md).
 
 - No input: autonomous gaze and blinking
 - Touch/drag: both eyes follow the contact point (where supported by the style)
-- Tap: select the next style
+- Tap: select the next style and briefly show the battery percentage
+- Press and hold without moving for 2 seconds: deep sleep
+- BOOT button: wake from deep sleep
 
 The styles follow the original collection: Hazel, Dragon, No Sclera,
 Goat/Krampus, Newt, Terminator, Cartoon Cat, Owl, Nauga, and Realistic Deer.
 Owl and Nauga retain the original designs' fixed gaze. Realistic Deer replaces
 Adafruit's abstract cartoon Doe with a brown textured iris and the broad,
 horizontal pupil characteristic of deer.
+
+Each style occasionally plays a short recorded sound at a randomized 15–45
+second interval. Samples and licensing details are documented in
+[`audio/README.md`](audio/README.md).
 
 ## Implementation
 
