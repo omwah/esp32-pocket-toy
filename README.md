@@ -1,6 +1,8 @@
-# ESP32 Display Projects
+# esp32-pocket-toy
 
-Projects for the Hosyond ESP32-S3 2.8" touch display hardware.
+Projects for the Hosyond ESP32-S3 2.8" touch display hardware: a
+battery-powered pocket toy that runs animated eyes, a screensaver, and
+diagnostics.
 
 ## Projects
 
