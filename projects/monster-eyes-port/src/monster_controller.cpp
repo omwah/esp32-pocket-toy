@@ -1,7 +1,22 @@
 #include "monster_controller.h"
 #include <FFat.h>
+#include <Preferences.h>
+#include <ArduinoJson.h>
 #include <algorithm>
 #include <new>
+
+namespace {
+String enabledKey(const String &id) {
+  uint32_t hash = 2166136261u;
+  for (size_t i = 0; i < id.length(); ++i) {
+    hash ^= uint8_t(id[i]);
+    hash *= 16777619u;
+  }
+  char key[12];
+  snprintf(key, sizeof(key), "e%08lx", (unsigned long)hash);
+  return key;
+}
+}
 
 MonsterController::~MonsterController() {
   if (_eyes) _eyes->~Adafruit_Monster_Eyes();
@@ -28,7 +43,20 @@ bool MonsterController::refreshPackages() {
       if (name[i] == '_' || name[i] == '-') { name.setCharAt(i, ' '); capitalize = true; }
       else if (capitalize) { name.setCharAt(i, toupper(name[i])); capitalize = false; }
     }
-    _packages.push_back({id, name, config});
+    uint16_t screenBackground = TFT_BLACK;
+    File configFile = FFat.open(config, FILE_READ);
+    JsonDocument document;
+    if (configFile && !deserializeJson(document, configFile)) {
+      JsonVariantConst color = document["extensions"]["displayBackground"];
+      if (color.is<JsonArrayConst>() && color.size() >= 3) {
+        uint8_t r = color[0].as<uint8_t>();
+        uint8_t g = color[1].as<uint8_t>();
+        uint8_t b = color[2].as<uint8_t>();
+        screenBackground = uint16_t((r & 0xF8) << 8) |
+                           uint16_t((g & 0xFC) << 3) | (b >> 3);
+      }
+    }
+    _packages.push_back({id, name, config, true, screenBackground});
   }
   std::sort(_packages.begin(), _packages.end(), [](const Package &a, const Package &b) {
     return a.id.compareTo(b.id) < 0;
@@ -39,9 +67,20 @@ bool MonsterController::refreshPackages() {
 
 bool MonsterController::begin() {
   if (!refreshPackages()) return false;
+  Preferences prefs;
+  prefs.begin("monster-eyes", true);
+  String saved = prefs.getString("current", "hazel");
   uint8_t initial = 0;
-  for (uint8_t i = 0; i < _packages.size(); ++i)
-    if (_packages[i].id == "hazel") { initial = i; break; }
+  for (uint8_t i = 0; i < _packages.size(); ++i) {
+    _packages[i].enabled = prefs.getBool(enabledKey(_packages[i].id).c_str(), true);
+    if (_packages[i].id == saved) initial = i;
+  }
+  prefs.end();
+  if (!enabledStyleCount()) _packages[initial].enabled = true;
+  if (!_packages[initial].enabled) {
+    for (uint8_t i = 0; i < _packages.size(); ++i)
+      if (_packages[i].enabled) { initial = i; break; }
+  }
   return setStyle(initial);
 }
 
@@ -64,13 +103,51 @@ bool MonsterController::setStyle(uint8_t style) {
     return false;
   }
   _style = style;
-  Serial.printf("active style: %s\n", _packages[style].name.c_str());
+  _display.clear(_packages[style].screenBackground);
+  persistCurrent();
+  Serial.printf("active style: %s, screen background: 0x%04X\n",
+                _packages[style].name.c_str(), _packages[style].screenBackground);
   return true;
 }
 
-bool MonsterController::nextStyle() {
-  return !_packages.empty() && setStyle((_style + 1) % _packages.size());
+bool MonsterController::navigate(int direction) {
+  if (_packages.empty()) return false;
+  int candidate = _style;
+  for (size_t attempts = 0; attempts < _packages.size(); ++attempts) {
+    candidate = (candidate + direction + _packages.size()) % _packages.size();
+    if (_packages[candidate].enabled) return setStyle(candidate);
+  }
+  return false;
 }
-bool MonsterController::previousStyle() {
-  return !_packages.empty() && setStyle((_style + _packages.size() - 1) % _packages.size());
+
+bool MonsterController::nextStyle() { return navigate(1); }
+bool MonsterController::previousStyle() { return navigate(-1); }
+
+bool MonsterController::styleEnabled(uint8_t style) const {
+  return style < _packages.size() && _packages[style].enabled;
+}
+
+uint8_t MonsterController::enabledStyleCount() const {
+  uint8_t count = 0;
+  for (const auto &package : _packages) if (package.enabled) ++count;
+  return count;
+}
+
+bool MonsterController::setStyleEnabled(uint8_t style, bool enabled) {
+  if (style >= _packages.size()) return false;
+  if (!enabled && _packages[style].enabled && enabledStyleCount() == 1) return false;
+  _packages[style].enabled = enabled;
+  Preferences prefs;
+  prefs.begin("monster-eyes", false);
+  prefs.putBool(enabledKey(_packages[style].id).c_str(), enabled);
+  prefs.end();
+  if (!enabled && style == _style) return nextStyle();
+  return true;
+}
+
+void MonsterController::persistCurrent() {
+  Preferences prefs;
+  prefs.begin("monster-eyes", false);
+  prefs.putString("current", _packages[_style].id);
+  prefs.end();
 }

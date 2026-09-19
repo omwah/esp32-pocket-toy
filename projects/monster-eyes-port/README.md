@@ -12,10 +12,15 @@ Wi-Fi, and overlays reach feature parity with the production application.
 - Mounts the existing PlatformIO FATFS partition through `FFat`.
 - Reads and applies package `config.eye` files through the Monster Eyes JSON parser.
 - Loads standard 24-bit texture BMPs and 1-bit eyelid BMPs from FATFS.
-- Includes all 14 upstream M4 EYES packages, scaled for 128x128 eye regions.
-- Reconstructs the renderer safely when switching packages at runtime.
-- Tracks touch position and supports package navigation: tap the left or right
-  third of the screen for previous/next, or tap the center to blink.
+- Includes all 14 upstream M4 EYES packages and scales their geometry at runtime.
+- Discovers package directories under `/eyes`; eye names and paths are not
+  compiled into firmware.
+- Resolves package-relative asset paths and reconstructs the renderer safely
+  when switching packages.
+- Tracks touch position. Tap once to reveal controls, then use previous, flip,
+  and next along the bottom; tap above the controls to blink.
+- Persists the current package and per-package enabled state in NVS. Navigation
+  skips disabled packages and prevents disabling the final enabled package.
 - Accepts `previous` and `next` commands over the serial console.
 
 The vendored Monster Eyes core is based on Adafruit Monster Eyes 1.0.0 commit
@@ -40,9 +45,8 @@ micromamba run -n platformio pio run -d projects/uncanny-eyes -t upload
 ## Remaining migration work
 
 1. Convert the remaining locally modified styles into EYES package folders.
-2. Replace the compiled package list with a persistent filesystem registry.
-3. Port the full controls overlay, display flipping, audio, battery, sleep, and Wi-Fi.
-4. Restore persistent enabled/disabled filtering and cycle order.
+2. Port audio, battery, sleep, Wi-Fi, and the complete production overlay.
+3. Add cycle mode and package ordering to the persistent registry.
 5. Add atomic web upload, validation, download, rename, and deletion.
 6. Add namespaced configuration extensions for sounds and local visual effects.
 7. Compare every migrated style against the production renderer before replacing
