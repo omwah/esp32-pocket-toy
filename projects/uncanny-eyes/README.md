@@ -75,3 +75,10 @@ operation to avoid tearing. Editable source artwork lives under `assets/`.
 `tools/generate_eye_assets.py` converts those PNGs to efficient RGB565 and
 threshold tables under ignored `generated/` files before each build. The PNGs,
 not opaque C arrays, remain the source of truth.
+
+Unlike the original Adafruit Monster Eyes firmware, which loads `config.eye`
+and bitmap assets from a FAT/CIRCUITPY filesystem at runtime, this project
+compiles the generated artwork directly into the firmware. The Monster Eyes
+textures were resized or projected for this renderer, and the existing smooth
+eyelid maps are used for progressive blinking. No device filesystem setup is
+required after uploading the firmware.

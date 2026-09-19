@@ -7,7 +7,23 @@ Projects for the Hosyond ESP32-S3 2.8" touch display hardware.
 - [`projects/space-battle/`](projects/space-battle/) — continuous fleet-engagement screensaver
 - [`projects/uncanny-eyes/`](projects/uncanny-eyes/) — asset-based animated eyes with touch tracking
 
-PlatformIO is installed in the `platformio` micromamba environment.
+## Development environment
+
+The environment definition is [`environment.yml`](environment.yml). The filename
+`environment.yml` is the conventional spelling for a Conda or micromamba
+environment definition. Create it once with:
+
+```sh
+micromamba create -f environment.yml
+```
+
+The environment is named `platformio`. To update an existing checkout after the
+dependencies change, use:
+
+```sh
+micromamba install -n platformio -f environment.yml
+```
+
 Build a project from the repository root, for example:
 
 ```sh
