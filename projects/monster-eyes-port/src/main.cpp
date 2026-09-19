@@ -4,6 +4,7 @@
 #include "composite_tft_display.h"
 #include "monster_controller.h"
 #include "touch.h"
+#include "web_control.h"
 #include "board_config.h"
 
 TFT_eSPI display;
@@ -16,12 +17,16 @@ uint32_t touchStartedAt = 0;
 int touchStartX = 0;
 int touchStartY = 0;
 int batteryPercent = -1;
+WebControl web(monster, batteryPercent);
 bool controlsVisible = false;
 bool controlsDirty = false;
 bool flipped = false;
+bool showWifiIp = false;
 uint32_t controlsUntil = 0;
 bool backgroundPending = true;
 uint8_t lastRenderedStyle = 0xFF;
+bool lastWifiConnected = false;
+bool lastProvisioning = false;
 
 void sampleBattery() {
   analogSetPinAttenuation(BATTERY_ADC, ADC_11db);
@@ -41,6 +46,7 @@ void sampleBattery() {
 }
 
 void enterDeepSleep() {
+  web.stop();
   display.writecommand(TFT_DISPOFF);
   display.writecommand(0x10);
   digitalWrite(TFT_BL, LOW);
@@ -73,10 +79,31 @@ void showControls(uint32_t now) {
 }
 
 void drawControls() {
-  display.fillRect(0, 0, SCREEN_W, 28, TFT_DARKGREY);
+  display.fillRect(0, 0, SCREEN_W, 52, TFT_DARKGREY);
   display.setTextDatum(TC_DATUM);
   display.setTextColor(TFT_WHITE, TFT_DARKGREY);
   display.drawString(monster.styleName(monster.style()), SCREEN_W / 2, 5, 2);
+  if (web.provisioning()) {
+    String setup = String(web.setupSsid()) + " / " + web.setupPassword();
+    display.drawString(setup, SCREEN_W / 2, 32, 1);
+  } else if (showWifiIp) {
+    display.drawString(web.ipAddress(), SCREEN_W / 2, 32, 1);
+  }
+  uint16_t wifiColor = web.connected() ? TFT_GREEN : (web.configured() ? TFT_YELLOW : TFT_RED);
+  const int wx = SCREEN_W - 47, wy = 17;
+  for (int dy = -12; dy <= 0; ++dy) {
+    for (int dx = -12; dx <= 12; ++dx) {
+      int r2 = dx * dx + dy * dy;
+      bool outer = r2 >= 81 && r2 <= 121 && dy < -abs(dx) / 4;
+      bool inner = r2 >= 25 && r2 <= 49 && dy < -abs(dx) / 4;
+      if (outer || inner) display.drawPixel(wx + dx, wy + dy, wifiColor);
+    }
+  }
+  display.fillCircle(wx, wy, 2, wifiColor);
+  if (!web.configured()) {
+    display.drawLine(wx - 11, wy - 12, wx + 10, wy + 1, TFT_RED);
+    display.drawLine(wx - 10, wy - 12, wx + 11, wy + 1, TFT_RED);
+  }
   char battery[8];
   if (batteryPercent < 0) snprintf(battery, sizeof(battery), "--%%");
   else snprintf(battery, sizeof(battery), "%d%%", batteryPercent);
@@ -84,7 +111,9 @@ void drawControls() {
       (batteryPercent <= 20 ? TFT_RED : (batteryPercent <= 50 ? TFT_YELLOW : TFT_GREEN));
   display.setTextDatum(TR_DATUM);
   display.setTextColor(batteryColor, TFT_DARKGREY);
+  // Font 2 matches the icon height; draw twice for slightly more visual weight.
   display.drawString(battery, SCREEN_W - 4, 5, 2);
+  display.drawString(battery, SCREEN_W - 5, 5, 2);
   display.fillRect(0, SCREEN_H - 40, SCREEN_W, 40, TFT_DARKGREY);
   display.setTextDatum(MC_DATUM);
   display.setTextColor(TFT_WHITE, TFT_DARKGREY);
@@ -97,7 +126,7 @@ void hideControls() {
   if (!controlsVisible) return;
   controlsVisible = false;
   controlsDirty = false;
-  display.fillRect(0, 0, SCREEN_W, 28, monster.screenBackground());
+  display.fillRect(0, 0, SCREEN_W, 56, monster.screenBackground());
   display.fillRect(0, SCREEN_H - 40, SCREEN_W, 40, monster.screenBackground());
 }
 
@@ -118,6 +147,7 @@ void setup() {
     while (true) delay(1000);
   }
   if (!touch.begin()) Serial.println("touch unavailable; using autonomous gaze");
+  web.begin();
   Serial.println("Monster Eyes composite TFT backend ready");
 }
 
@@ -146,10 +176,14 @@ void loop() {
     if (now - touchStartedAt < 300) {
       if (!controlsVisible) {
         showControls(now);
+      } else if (touchStartY < 55 && touchStartX >= SCREEN_W - 72 && touchStartX < SCREEN_W - 22) {
+        showWifiIp = !showWifiIp;
+        showControls(now);
+        controlsDirty = true;
       } else if (touchStartY >= SCREEN_H - 50) {
         hideControls();
-        if (touchStartX < SCREEN_W / 3) monster.previousStyle();
-        else if (touchStartX > SCREEN_W * 2 / 3) monster.nextStyle();
+        if (touchStartX < SCREEN_W / 3) { monster.previousStyle(); web.manualStyleSelected(); }
+        else if (touchStartX > SCREEN_W * 2 / 3) { monster.nextStyle(); web.manualStyleSelected(); }
         else {
           flipped = !flipped;
           display.setRotation(flipped ? 3 : 1);
@@ -168,22 +202,16 @@ void loop() {
   if (!touched) sleepCandidate = false;
   wasTouched = touched;
 
-  static String command;
-  while (Serial.available()) {
-    char c = Serial.read();
-    if (c == '\n') {
-      command.trim();
-      if (command == "next") {
-        monster.nextStyle();
-        backgroundPending = true;
-        controlsDirty = controlsVisible;
-      } else if (command == "previous") {
-        monster.previousStyle();
-        backgroundPending = true;
-        controlsDirty = controlsVisible;
-      }
-      command = "";
-    } else if (c != '\r' && command.length() < 32) command += c;
+  uint8_t styleBeforeWeb = monster.style();
+  web.update(now);
+  if (web.connected() != lastWifiConnected || web.provisioning() != lastProvisioning) {
+    lastWifiConnected = web.connected();
+    lastProvisioning = web.provisioning();
+    controlsDirty = controlsVisible;
+  }
+  if (monster.style() != styleBeforeWeb) {
+    backgroundPending = true;
+    controlsDirty = controlsVisible;
   }
   if (controlsVisible && int32_t(now - controlsUntil) >= 0) hideControls();
   if (monster.style() != lastRenderedStyle) {
