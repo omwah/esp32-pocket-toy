@@ -71,7 +71,6 @@ void Eyes::update(uint32_t nowMs, bool touched, float touchX, float touchY) {
     }
   }
   _touchWasDown = touched;
-  if (_style == 8) { _gazeX = 0; _gazeY = 0; }
 
   if (!_blinkStart && nowMs >= _nextBlink) _blinkStart = nowMs;
   if (_blinkStart && nowMs - _blinkStart >= 240) {
@@ -125,9 +124,9 @@ void Eyes::previousStyle() {
 
 void Eyes::drawEye(int cx, float blink) {
   const EyeAsset &asset = EYE_ASSETS[_style];
-  const bool fixedGaze = _style == 8; // Nauga's googly eye remains fixed
-  const float gx = fixedGaze ? 0 : _gazeX;
-  const float gy = fixedGaze ? 0 : _gazeY;
+  const bool fixedGaze = false;
+  const float gx = _gazeX;
+  const float gy = _gazeY;
   const int eyeIndex = cx > SCREEN_W / 2 ? 1 : 0;
   const int pupilRadius = (_style == 7) ? 23 : ((_style == 8) ? 11 : 14);
   // Match the IRIS_WIDTH encoded by each upstream style. Some flat cartoon
