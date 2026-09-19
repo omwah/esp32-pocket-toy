@@ -14,6 +14,7 @@ uint32_t touchStartedAt = 0;
 int touchStartX = 0;
 int touchStartY = 0;
 bool controlsVisible = false;
+bool controlsDirty = false;
 bool flipped = false;
 uint32_t controlsUntil = 0;
 bool backgroundPending = true;
@@ -29,6 +30,7 @@ void drawScreenBackground() {
 }
 
 void showControls(uint32_t now) {
+  if (!controlsVisible) controlsDirty = true;
   controlsVisible = true;
   controlsUntil = now + 5000;
 }
@@ -48,6 +50,7 @@ void drawControls() {
 void hideControls() {
   if (!controlsVisible) return;
   controlsVisible = false;
+  controlsDirty = false;
   display.fillRect(0, 0, SCREEN_W, 28, monster.screenBackground());
   display.fillRect(0, SCREEN_H - 40, SCREEN_W, 40, monster.screenBackground());
 }
@@ -104,6 +107,7 @@ void loop() {
         }
         backgroundPending = true;
         showControls(now);
+        controlsDirty = true;
       } else {
         monster.blink();
         showControls(now);
@@ -117,8 +121,15 @@ void loop() {
     char c = Serial.read();
     if (c == '\n') {
       command.trim();
-      if (command == "next") { monster.nextStyle(); backgroundPending = true; }
-      else if (command == "previous") { monster.previousStyle(); backgroundPending = true; }
+      if (command == "next") {
+        monster.nextStyle();
+        backgroundPending = true;
+        controlsDirty = controlsVisible;
+      } else if (command == "previous") {
+        monster.previousStyle();
+        backgroundPending = true;
+        controlsDirty = controlsVisible;
+      }
       command = "";
     } else if (c != '\r' && command.length() < 32) command += c;
   }
@@ -132,5 +143,8 @@ void loop() {
     drawScreenBackground();
     backgroundPending = false;
   }
-  if (controlsVisible) drawControls();
+  if (controlsVisible && controlsDirty) {
+    drawControls();
+    controlsDirty = false;
+  }
 }
