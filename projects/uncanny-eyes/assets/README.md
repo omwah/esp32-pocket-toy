@@ -10,8 +10,9 @@ upstream `uncannyEyes/graphics/owlEye.h`, because upstream does not include that
 design's original conversion directory. Its flat sclera and iris were replaced
 with locally created feathered tissue and a textured golden owl iris. The
 `doeEye` sclera and iris were similarly replaced with locally created realistic
-deer artwork; its eyelid maps remain derived from upstream. All other
-directories are copied from upstream `convert/`.
+deer artwork; its eyelid maps remain derived from upstream. `animeEye` is a
+local large-eye design with a sapphire iris and oversized catchlights. All
+other directories are copied from upstream `convert/`.
 
 Do not edit files under `generated/`. After changing artwork, regenerate it:
 

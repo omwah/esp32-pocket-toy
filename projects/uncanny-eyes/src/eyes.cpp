@@ -128,10 +128,11 @@ void Eyes::drawEye(int cx, float blink) {
   const float gx = _gazeX;
   const float gy = _gazeY;
   const int eyeIndex = cx > SCREEN_W / 2 ? 1 : 0;
-  const int pupilRadius = (_style == 7) ? 23 : ((_style == 8) ? 11 : 14);
+  const int pupilRadius = (_style == 7) ? 23 :
+                          ((_style == 8) ? 11 : ((_style == 10) ? 16 : 14));
   // Match the IRIS_WIDTH encoded by each upstream style. Some flat cartoon
   // styles intentionally use a 1x1 colour texture spread over a large iris.
-  static const uint8_t irisRadii[] = {40, 80, 80, 64, 40, 40, 64, 52, 40, 52};
+  static const uint8_t irisRadii[] = {40, 80, 80, 64, 40, 40, 64, 52, 40, 52, 57};
   const int irisRadius = irisRadii[_style];
 
   for (int y = EYE_Y - EYE_HALF_H; y < EYE_Y + EYE_HALF_H; ++y) {
@@ -155,11 +156,15 @@ void Eyes::drawEye(int cx, float blink) {
       int lidY = constrain(mapY * asset.lidH / 128, 0, asset.lidH - 1);
       uint8_t upper = asset.upper[lidY * asset.lidW + lidX];
       uint8_t lower = asset.lower[lidY * asset.lidW + lidX];
-      uint8_t baseUpper = fixedGaze ? 0 : constrain(55 + gy * 35, 0, 100);
-      uint8_t baseLower = fixedGaze ? 0 : constrain(55 - gy * 25, 0, 100);
+      uint8_t baseUpper = (_style == 10 || fixedGaze) ? 0 : constrain(55 + gy * 35, 0, 100);
+      uint8_t baseLower = (_style == 10 || fixedGaze) ? 0 : constrain(55 - gy * 25, 0, 100);
       uint8_t upperThreshold = baseUpper + (254 - baseUpper) * blink;
       uint8_t lowerThreshold = baseLower + (254 - baseLower) * blink;
-      if (upper <= upperThreshold || lower <= lowerThreshold) {
+      bool covered = upper <= upperThreshold || lower <= lowerThreshold;
+      // Anime eyes stay fully round between blinks so the entire oversized
+      // iris is visible; the original maps return only during the blink.
+      if (_style == 10 && blink < 0.01f) covered = false;
+      if (covered) {
         // The framebuffer has no alpha channel; painting the scene background
         // is the equivalent of transparency around and over the eye.
         _frame->drawPixel(x, y, rgb(7, 3, 10));
@@ -199,6 +204,27 @@ void Eyes::drawEye(int cx, float blink) {
         int iy = constrain((int)((irisRadius - radius) * asset.irisH / irisRadius),
                            0, asset.irisH - 1);
         colour = asset.iris[iy * asset.irisW + ix];
+      }
+
+      if (_style == 10) {
+        // Large catchlights plus animated star glints, all attached to the iris.
+        int hx1=px+17, hy1=py+20, hx2=px-13, hy2=py+10;
+        if (hx1*hx1+hy1*hy1<72 || hx2*hx2+hy2*hy2<14) colour=TFT_WHITE;
+
+        static const int8_t stars[][2]={{-25,-5},{19,-25},{27,17},{-17,29},{7,35}};
+        uint32_t phase=millis()/140;
+        for (uint8_t i=0;i<5;++i) {
+          int sx=px-stars[i][0], sy=py-stars[i][1];
+          // Each star pulses on a different phase. At peak it grows a crisp
+          // four-point cross, producing a visible glimmer rather than noise.
+          int reach=((phase+i*3)%11<4)?3:1;
+          if ((abs(sx)==0 && abs(sy)<=reach) ||
+              (abs(sy)==0 && abs(sx)<=reach) ||
+              (reach==3 && abs(sx)==1 && abs(sy)==1)) {
+            colour=(i&1)?TFT_WHITE:rgb(150,220,255);
+            break;
+          }
+        }
       }
       _frame->drawPixel(x, y, colour);
     }

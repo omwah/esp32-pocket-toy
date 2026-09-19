@@ -21,6 +21,7 @@ STYLES = [
     ("newtEye", "Newt"), ("terminatorEye", "Terminator"),
     ("catEye", "Cartoon cat"), ("owlEye", "Owl"),
     ("naugaEye", "Nauga"), ("doeEye", "Realistic deer"),
+    ("animeEye", "Big Anime"),
 ]
 
 def rgb565(pixel):

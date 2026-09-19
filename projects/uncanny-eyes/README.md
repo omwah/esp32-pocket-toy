@@ -1,7 +1,7 @@
 # Uncanny Eyes for the Hosyond ES3C28P
 
 Animated eyes for the Hosyond ESP32-S3 2.8-inch touch display. The eyes roam,
-blink, track touches, and cycle through ten designs using Adafruit's original
+blink, track touches, and cycle through eleven designs using Adafruit's original
 editable PNG artwork.
 
 The animation is an original hardware-specific adaptation inspired by
@@ -34,7 +34,8 @@ instructions are in [`../../HARDWARE.md`](../../HARDWARE.md).
 - BOOT button: wake from deep sleep
 
 The styles follow the original collection: Hazel, Dragon, No Sclera,
-Goat/Krampus, Newt, Terminator, Cartoon Cat, Owl, Nauga, and Realistic Deer.
+Goat/Krampus, Newt, Terminator, Cartoon Cat, Owl, Nauga, Realistic Deer, and
+Big Anime.
 Owl, Nauga, and Deer track movement like the other living-eye styles.
 Realistic Deer replaces
 Adafruit's abstract cartoon Doe with a brown textured iris and the broad,

@@ -53,9 +53,9 @@ bool Audio::begin() {
 }
 
 void Audio::playStyle(uint8_t style) {
-  if (!_ok || _muted || style>=10) return;
+  if (!_ok || _muted || style>=11) return;
   // Hazel normally breathes quietly; roughly one event in five is a sigh.
-  uint8_t sampleIndex = (style == 0 && random(5) == 0) ? 10 : style;
+  uint8_t sampleIndex = (style == 0 && random(5) == 0) ? 11 : style;
   portENTER_CRITICAL(&_mux);
   _sample=AUDIO_SAMPLES[sampleIndex].data;
   _length=AUDIO_SAMPLES[sampleIndex].length;
