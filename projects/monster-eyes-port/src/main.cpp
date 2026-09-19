@@ -33,18 +33,18 @@ bool lastMuted = false;
 
 void drawSoundIcon(int x, int y) {
   uint16_t color = audio.hasSound() ? TFT_WHITE : TFT_LIGHTGREY;
-  // Speaker silhouette inspired by the supplied icon; the slash alone denotes mute.
-  display.fillRect(x - 11, y - 5, 5, 10, color);
-  display.fillTriangle(x - 6, y - 5, x + 1, y - 11, x + 1, y + 11, color);
-  for (int r = 6; r <= 11; r += 5) {
+  // Match the Wi-Fi icon's 15-pixel height; the slash stays inside that box.
+  display.fillRect(x - 10, y - 3, 4, 7, color);
+  display.fillTriangle(x - 6, y - 3, x, y - 7, x, y + 7, color);
+  for (int r = 4; r <= 7; r += 3) {
     for (int dy = -r; dy <= r; ++dy) {
       int dx = int(sqrtf(float(r * r - dy * dy)));
-      if (dx >= 0) display.drawPixel(x + dx + 1, y + dy, color);
+      display.drawPixel(x + dx + 1, y + dy, color);
     }
   }
   if (audio.muted()) {
-    display.drawLine(x - 12, y - 13, x + 14, y + 13, TFT_RED);
-    display.drawLine(x - 11, y - 13, x + 15, y + 13, TFT_RED);
+    display.drawLine(x - 10, y - 7, x + 9, y + 7, TFT_RED);
+    display.drawLine(x - 9, y - 7, x + 10, y + 7, TFT_RED);
   }
 }
 
@@ -107,7 +107,7 @@ void drawControls() {
   display.setTextDatum(TC_DATUM);
   display.setTextColor(TFT_WHITE, TFT_DARKGREY);
   display.drawString(monster.styleName(monster.style()), SCREEN_W / 2, 5, 2);
-  drawSoundIcon(20, 14);
+  drawSoundIcon(20, 12);
   if (web.provisioning()) {
     String setup = String(web.setupSsid()) + " / " + web.setupPassword();
     display.drawString(setup, SCREEN_W / 2, 32, 1);
