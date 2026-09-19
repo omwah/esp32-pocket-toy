@@ -1,7 +1,6 @@
 #include "monster_controller.h"
 #include <FFat.h>
 #include <Preferences.h>
-#include <ArduinoJson.h>
 #include <algorithm>
 #include <new>
 
@@ -43,20 +42,7 @@ bool MonsterController::refreshPackages() {
       if (name[i] == '_' || name[i] == '-') { name.setCharAt(i, ' '); capitalize = true; }
       else if (capitalize) { name.setCharAt(i, toupper(name[i])); capitalize = false; }
     }
-    uint16_t screenBackground = TFT_BLACK;
-    File configFile = FFat.open(config, FILE_READ);
-    JsonDocument document;
-    if (configFile && !deserializeJson(document, configFile)) {
-      JsonVariantConst color = document["extensions"]["displayBackground"];
-      if (color.is<JsonArrayConst>() && color.size() >= 3) {
-        uint8_t r = color[0].as<uint8_t>();
-        uint8_t g = color[1].as<uint8_t>();
-        uint8_t b = color[2].as<uint8_t>();
-        screenBackground = uint16_t((r & 0xF8) << 8) |
-                           uint16_t((g & 0xFC) << 3) | (b >> 3);
-      }
-    }
-    _packages.push_back({id, name, config, true, screenBackground});
+    _packages.push_back({id, name, config, true});
   }
   std::sort(_packages.begin(), _packages.end(), [](const Package &a, const Package &b) {
     return a.id.compareTo(b.id) < 0;
@@ -103,10 +89,10 @@ bool MonsterController::setStyle(uint8_t style) {
     return false;
   }
   _style = style;
-  _display.clear(_packages[style].screenBackground);
+  _display.clear(_eyes->config().eyelidColor);
   persistCurrent();
-  Serial.printf("active style: %s, screen background: 0x%04X\n",
-                _packages[style].name.c_str(), _packages[style].screenBackground);
+  Serial.printf("active style: %s, background: 0x%04X\n",
+                _packages[style].name.c_str(), _eyes->config().eyelidColor);
   return true;
 }
 

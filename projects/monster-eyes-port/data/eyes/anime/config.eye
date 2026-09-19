@@ -13,9 +13,6 @@
   "pupilMin"      : 0.3,
   "pupilMax"      : 0.4,
   "squint"        : 0.1,
-  "extensions" : {
-    "displayBackground" : [ 216, 204, 197 ]
-  },
   "left" : {
   },
   "right" : {

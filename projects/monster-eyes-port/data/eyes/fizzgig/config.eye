@@ -12,9 +12,6 @@
   "lowerEyelid" : "fizzgig/lower.bmp",
   "tracking"    : false,
   "lightSensor" : 102,
-  "extensions" : {
-    "displayBackground" : [ 59, 37, 24 ]
-  },
   "left" : {
   },
   "right" : {

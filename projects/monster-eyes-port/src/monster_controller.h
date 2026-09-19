@@ -17,7 +17,7 @@ public:
   bool setStyleEnabled(uint8_t style, bool enabled);
   uint8_t enabledStyleCount() const;
   uint16_t screenBackground() const {
-    return _style < _packages.size() ? _packages[_style].screenBackground : TFT_BLACK;
+    return _eyes ? _eyes->config().eyelidColor : TFT_BLACK;
   }
   void animate() { if (_eyes) _eyes->animate(); }
   void setGaze(float x, float y) { if (_eyes) _eyes->setGaze(x, y); }
@@ -31,7 +31,6 @@ private:
   struct Package {
     String id, name, config;
     bool enabled;
-    uint16_t screenBackground;
   };
   bool navigate(int direction);
   void persistCurrent();

@@ -16,6 +16,17 @@ int touchStartY = 0;
 bool controlsVisible = false;
 bool flipped = false;
 uint32_t controlsUntil = 0;
+bool backgroundPending = true;
+uint8_t lastRenderedStyle = 0xFF;
+
+void drawScreenBackground() {
+  const uint16_t color = monster.screenBackground();
+  display.fillRect(0, 0, SCREEN_W, 56, color);
+  display.fillRect(0, 184, SCREEN_W, SCREEN_H - 184, color);
+  display.fillRect(0, 56, 18, 128, color);
+  display.fillRect(146, 56, 28, 128, color);
+  display.fillRect(302, 56, 18, 128, color);
+}
 
 void showControls(uint32_t now) {
   controlsVisible = true;
@@ -91,6 +102,7 @@ void loop() {
           touch.setFlipped(flipped);
           display.fillScreen(monster.screenBackground());
         }
+        backgroundPending = true;
         showControls(now);
       } else {
         monster.blink();
@@ -105,12 +117,20 @@ void loop() {
     char c = Serial.read();
     if (c == '\n') {
       command.trim();
-      if (command == "next") monster.nextStyle();
-      else if (command == "previous") monster.previousStyle();
+      if (command == "next") { monster.nextStyle(); backgroundPending = true; }
+      else if (command == "previous") { monster.previousStyle(); backgroundPending = true; }
       command = "";
     } else if (c != '\r' && command.length() < 32) command += c;
   }
   if (controlsVisible && int32_t(now - controlsUntil) >= 0) hideControls();
+  if (monster.style() != lastRenderedStyle) {
+    lastRenderedStyle = monster.style();
+    backgroundPending = true;
+  }
   monster.animate();
+  if (backgroundPending) {
+    drawScreenBackground();
+    backgroundPending = false;
+  }
   if (controlsVisible) drawControls();
 }
