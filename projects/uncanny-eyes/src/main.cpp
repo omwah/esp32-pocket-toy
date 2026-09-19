@@ -67,8 +67,22 @@ void loop() {
   } else if (!down && pressActive) {
     // A short, stationary gesture selects the next design. Drags only steer.
     if (now - pressStartedAt <= 350) {
-      eyes.nextStyle();
-      nextSoundAt = now + random(8000, 20000);
+      // The first tap only reveals the controls. Once visible, the explicit
+      // buttons handle sound and style selection; taps elsewhere refresh them.
+      if (!eyes.controlsVisible(now)) {
+        eyes.showControls();
+      } else if (pressStart.x <= 60 && pressStart.y <= 38 && audio.present()) {
+        audio.setMuted(!audio.muted());
+        eyes.showControls();
+      } else if (pressStart.x <= 65 && pressStart.y >= SCREEN_H - 45) {
+        eyes.previousStyle();
+        nextSoundAt = now + random(8000, 20000);
+      } else if (pressStart.x >= SCREEN_W - 65 && pressStart.y >= SCREEN_H - 45) {
+        eyes.nextStyle();
+        nextSoundAt = now + random(8000, 20000);
+      } else {
+        eyes.showControls();
+      }
     }
     pressActive = false;
     sleepCandidate = false;
@@ -87,6 +101,6 @@ void loop() {
     nextSoundAt = now + random(15000, 45000);
   }
   audio.update();
-  eyes.draw();
+  eyes.draw(audio.present(), audio.muted());
   delay(1);
 }

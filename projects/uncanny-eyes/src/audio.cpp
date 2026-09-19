@@ -53,7 +53,7 @@ bool Audio::begin() {
 }
 
 void Audio::playStyle(uint8_t style) {
-  if (!_ok || style>=10) return;
+  if (!_ok || _muted || style>=10) return;
   portENTER_CRITICAL(&_mux);
   _sample=AUDIO_SAMPLES[style].data; _length=AUDIO_SAMPLES[style].length; _position=0;
   portEXIT_CRITICAL(&_mux);
@@ -96,6 +96,15 @@ void Audio::update() {
       (unsigned)_blocksWritten,(unsigned)_writeErrors,(unsigned)_maxWriteUs,active);
     _maxWriteUs=0;
   }
+}
+
+void Audio::setMuted(bool muted) {
+  if (_muted == muted) return;
+  _muted = muted;
+  portENTER_CRITICAL(&_mux);
+  if (muted) { _sample=nullptr; _position=_length=0; }
+  portEXIT_CRITICAL(&_mux);
+  if (_ok) digitalWrite(SPK_ENABLE, muted ? HIGH : LOW);
 }
 
 void Audio::stop() {

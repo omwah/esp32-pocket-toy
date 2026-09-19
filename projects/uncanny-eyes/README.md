@@ -25,7 +25,10 @@ instructions are in [`../../HARDWARE.md`](../../HARDWARE.md).
 
 - No input: autonomous gaze and blinking
 - Touch/drag: both eyes follow the contact point (where supported by the style)
-- Tap: select the next style and briefly show the battery percentage
+- Tap while controls are hidden: show controls and battery percentage
+- Bottom-left `<` button: previous style
+- Bottom-right `>` button: next style
+- Upper-left SOUND/MUTED button: toggle sound; gray NO SND indicates unavailable audio
 - Press and hold without moving for 2 seconds: deep sleep
 - BOOT button: wake from deep sleep
 

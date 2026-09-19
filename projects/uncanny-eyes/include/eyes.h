@@ -8,8 +8,11 @@ public:
   bool begin(TFT_eSPI &display);
   void update(uint32_t nowMs, bool touched, float touchX, float touchY);
   void nextStyle();
+  void previousStyle();
+  void showControls();
+  bool controlsVisible(uint32_t nowMs) const { return nowMs - _styleChangedAt < 3500; }
   uint8_t style() const { return _style; }
-  void draw();
+  void draw(bool soundPresent, bool muted);
 private:
   TFT_eSPI *_display = nullptr;
   TFT_eSprite *_frame = nullptr;

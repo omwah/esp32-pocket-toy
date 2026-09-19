@@ -106,11 +106,21 @@ void Eyes::sampleBattery() {
   }
 }
 
+void Eyes::showControls() {
+  _styleChangedAt = millis();
+  sampleBattery();
+}
+
 void Eyes::nextStyle() {
   _style = (_style + 1) % EYE_ASSET_COUNT;
-  _styleChangedAt = millis();
+  showControls();
   _blinkStart = _styleChangedAt;
-  sampleBattery();
+}
+
+void Eyes::previousStyle() {
+  _style = (_style + EYE_ASSET_COUNT - 1) % EYE_ASSET_COUNT;
+  showControls();
+  _blinkStart = _styleChangedAt;
 }
 
 void Eyes::drawEye(int cx, float blink) {
@@ -196,15 +206,29 @@ void Eyes::drawEye(int cx, float blink) {
   }
 }
 
-void Eyes::draw() {
+void Eyes::draw(bool soundPresent, bool muted) {
   _frame->fillSprite(rgb(7, 3, 10));
   float blink = blinkAmount(millis());
   drawEye(EYE_X[0], blink);
   drawEye(EYE_X[1], blink);
-  if (millis() - _styleChangedAt < 1200) {
+  if (controlsVisible(millis())) {
     _frame->setTextDatum(TC_DATUM);
     _frame->setTextColor(TFT_WHITE, rgb(7, 3, 10));
     _frame->drawString(styleName(), SCREEN_W / 2, 5, 2);
+
+    uint16_t soundColour = !soundPresent ? TFT_DARKGREY : (muted ? TFT_RED : TFT_GREEN);
+    const char *soundLabel = !soundPresent ? "NO SND" : (muted ? "MUTED" : "SOUND");
+    _frame->drawRoundRect(3, 3, 52, 22, 4, soundColour);
+    _frame->setTextDatum(MC_DATUM);
+    _frame->setTextColor(soundColour, rgb(7, 3, 10));
+    _frame->drawString(soundLabel, 29, 14, 1);
+
+    // Style navigation stays clear of the eyes and uses generous touch areas.
+    _frame->drawRoundRect(3, SCREEN_H - 35, 52, 31, 5, TFT_WHITE);
+    _frame->drawRoundRect(SCREEN_W - 55, SCREEN_H - 35, 52, 31, 5, TFT_WHITE);
+    _frame->setTextColor(TFT_WHITE, rgb(7, 3, 10));
+    _frame->drawString("<", 29, SCREEN_H - 20, 2);
+    _frame->drawString(">", SCREEN_W - 29, SCREEN_H - 20, 2);
 
     char battery[8];
     if (_batteryPercent < 0) snprintf(battery, sizeof(battery), "--%%");

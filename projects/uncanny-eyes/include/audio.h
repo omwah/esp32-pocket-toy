@@ -8,6 +8,8 @@ public:
   bool begin();
   void playStyle(uint8_t style);
   void update();
+  void setMuted(bool muted);
+  bool muted() const { return _muted; }
   void stop();
   bool present() const { return _ok; }
 private:
@@ -17,6 +19,7 @@ private:
   void taskLoop();
 
   bool _ok = false;
+  bool _muted = false;
   TaskHandle_t _task = nullptr;
   portMUX_TYPE _mux = portMUX_INITIALIZER_UNLOCKED;
   const int16_t *_sample = nullptr;
