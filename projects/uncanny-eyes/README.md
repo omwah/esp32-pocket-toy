@@ -35,7 +35,8 @@ instructions are in [`../../HARDWARE.md`](../../HARDWARE.md).
 
 The styles follow the original collection: Hazel, Dragon, No Sclera,
 Goat/Krampus, Newt, Terminator, Cartoon Cat, Owl, Nauga, and Realistic Deer.
-Owl and Nauga retain the original designs' fixed gaze. Realistic Deer replaces
+Nauga retains the original design's fixed gaze. Realistic Owl and Deer track
+movement like the other living-eye styles. Realistic Deer replaces
 Adafruit's abstract cartoon Doe with a brown textured iris and the broad,
 horizontal pupil characteristic of deer.
 

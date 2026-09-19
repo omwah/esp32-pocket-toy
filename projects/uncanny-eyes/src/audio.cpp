@@ -54,10 +54,15 @@ bool Audio::begin() {
 
 void Audio::playStyle(uint8_t style) {
   if (!_ok || _muted || style>=10) return;
+  // Hazel normally breathes quietly; roughly one event in five is a sigh.
+  uint8_t sampleIndex = (style == 0 && random(5) == 0) ? 10 : style;
   portENTER_CRITICAL(&_mux);
-  _sample=AUDIO_SAMPLES[style].data; _length=AUDIO_SAMPLES[style].length; _position=0;
+  _sample=AUDIO_SAMPLES[sampleIndex].data;
+  _length=AUDIO_SAMPLES[sampleIndex].length;
+  _position=0;
   portEXIT_CRITICAL(&_mux);
-  Serial.printf("audio: play style=%u samples=%u\n",style,(unsigned)_length);
+  Serial.printf("audio: play style=%u sample=%u samples=%u\n",
+                style,sampleIndex,(unsigned)_length);
 }
 
 void Audio::taskEntry(void *arg) { static_cast<Audio *>(arg)->taskLoop(); }

@@ -10,10 +10,10 @@ else:
 SOURCE = ROOT / "audio" / "sources"
 OUT = ROOT / "generated"
 NAMES = ["hazel", "dragon", "no_sclera", "goat", "newt", "terminator",
-         "cat", "owl", "nauga", "deer"]
+         "cat", "owl", "nauga", "deer", "hazel_sigh"]
 
 OUT.mkdir(exist_ok=True)
-(OUT / "audio_assets.h").write_text("""// Generated from audio/sources/*.wav. DO NOT EDIT.\n#pragma once\n#include <Arduino.h>\nstruct AudioSample { const int16_t *data; uint32_t length; };\nextern const AudioSample AUDIO_SAMPLES[10];\n""")
+(OUT / "audio_assets.h").write_text("""// Generated from audio/sources/*.wav. DO NOT EDIT.\n#pragma once\n#include <Arduino.h>\nstruct AudioSample { const int16_t *data; uint32_t length; };\nextern const AudioSample AUDIO_SAMPLES[11];\n""")
 with (OUT / "audio_assets.cpp").open("w") as out:
     out.write('#include "audio_assets.h"\n\n')
     records=[]
@@ -27,7 +27,7 @@ with (OUT / "audio_assets.cpp").open("w") as out:
         for i in range(0,count,16):
             out.write("  "+", ".join(str(v) for v in values[i:i+16])+",\n")
         out.write("};\n\n"); records.append((symbol,count))
-    out.write("const AudioSample AUDIO_SAMPLES[10] = {\n")
+    out.write("const AudioSample AUDIO_SAMPLES[11] = {\n")
     for symbol,count in records: out.write(f"  {{{symbol}, {count}}},\n")
     out.write("};\n")
 print("Generated audio sample tables")

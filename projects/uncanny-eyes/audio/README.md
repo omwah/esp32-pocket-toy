@@ -6,7 +6,7 @@ converts them to ignored firmware tables with `tools/generate_audio_assets.py`.
 
 | Style | Source | License |
 |---|---|---|
-| Hazel | [Old Man Cough](https://opengameart.org/content/old-man-cough) | CC0 |
+| Hazel | [Breathing Tired](https://opengameart.org/content/breathing-tired), with occasional [Sigh by the Mouth](https://bigsoundbank.com/sigh-by-the-mouth-s1405.html) | CC0 |
 | Dragon | [80 CC0 creature SFX #2](https://opengameart.org/content/80-cc0-creture-sfx-2), `roar_05.ogg` | CC0 |
 | No Sclera | Same pack, `slime_02.ogg` | CC0 |
 | Goat/Krampus | [Goat bleat](https://opengameart.org/content/goat-bleat) | CC BY 4.0 |
