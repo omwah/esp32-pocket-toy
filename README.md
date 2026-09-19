@@ -7,6 +7,7 @@ Projects for the Hosyond ESP32-S3 2.8" touch display hardware.
 - [`projects/space-battle/`](projects/space-battle/) — continuous fleet-engagement screensaver
 - [`projects/uncanny-eyes/`](projects/uncanny-eyes/) — asset-based animated eyes with touch and Wi-Fi controls
 - [`projects/power-diagnostics/`](projects/power-diagnostics/) — temporary external-power signal probe
+- [`projects/monster-eyes-port/`](projects/monster-eyes-port/) — experimental Monster Eyes renderer migration
 
 ## Development environment
 
