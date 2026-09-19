@@ -33,20 +33,40 @@ instructions are in [`../../HARDWARE.md`](../../HARDWARE.md).
 - Press and hold without moving for 2 seconds: deep sleep
 - BOOT button: wake from deep sleep
 
-The style collection includes Hazel, Dragon, No Sclera, Goat/Krampus, Newt,
-Terminator, Cartoon Cat, Owl, Nauga, Realistic Deer, and Big Anime, plus twelve
-styles adapted from Adafruit Monster Eyes: Big Blue, Demon, Doom Red, Doom
-Spiral, Fish, Fizzgig, Hypno Red, Reflection, Skull, Snake Green, Spikes, and
-Toon Stripe. Demon and Doom Spiral preserve their animated iris rotation.
-Owl, Nauga, and Deer track movement like the other living-eye styles.
-Realistic Deer replaces
-Adafruit's abstract cartoon Doe with a brown textured iris and the broad,
-horizontal pupil characteristic of deer.
+The available styles are listed below. A check mark indicates that the style
+has a recorded sound. The original eye styles come from Adafruit Uncanny Eyes;
+Big Anime is local artwork; and the remaining styles are adapted from Adafruit
+Monster Eyes.
 
-The original eleven styles occasionally play a short recorded sound at a
-randomized 15–45 second interval. The added Monster Eyes styles currently display `NO SND`.
-Samples and licensing details are documented in
-[`audio/README.md`](audio/README.md).
+| Style | Origin | Sound |
+|---|---|:---:|
+| Hazel | Adafruit Uncanny Eyes | ✓ |
+| Dragon | Adafruit Uncanny Eyes | ✓ |
+| No Sclera | Adafruit Uncanny Eyes | ✓ |
+| Goat/Krampus | Adafruit Uncanny Eyes | ✓ |
+| Newt | Adafruit Uncanny Eyes | ✓ |
+| Terminator | Adafruit Uncanny Eyes | ✓ |
+| Cartoon Cat | Adafruit Uncanny Eyes | ✓ |
+| Owl | Adafruit Uncanny Eyes + local artwork | ✓ |
+| Nauga | Adafruit Uncanny Eyes | ✓ |
+| Realistic Deer | Adafruit Uncanny Eyes + local artwork | ✓ |
+| Big Anime | Local artwork | ✓ |
+| Big Blue | Adafruit Monster Eyes |  |
+| Demon | Adafruit Monster Eyes |  |
+| Doom Red | Adafruit Monster Eyes |  |
+| Doom Spiral | Adafruit Monster Eyes |  |
+| Fish | Adafruit Monster Eyes |  |
+| Fizzgig | Adafruit Monster Eyes |  |
+| Hypno Red | Adafruit Monster Eyes |  |
+| Reflection | Adafruit Monster Eyes |  |
+| Skull | Adafruit Monster Eyes |  |
+| Snake Green | Adafruit Monster Eyes |  |
+| Spikes | Adafruit Monster Eyes |  |
+| Toon Stripe | Adafruit Monster Eyes |  |
+
+The styles with sound occasionally play a short recorded sample at a randomized
+15–45 second interval. The added Monster Eyes styles currently display `NO SND`.
+Samples and licensing details are documented in [`audio/README.md`](audio/README.md).
 
 ## Implementation
 
