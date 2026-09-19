@@ -208,16 +208,21 @@ void Eyes::drawEye(int cx, float blink) {
 
       if (_style == 10) {
         // Large catchlights plus animated star glints, all attached to the iris.
-        int hx1=px+17, hy1=py+20, hx2=px-13, hy2=py+10;
+        int hx1=px+(eyeIndex?13:17), hy1=py+(eyeIndex?16:20);
+        int hx2=px-(eyeIndex?17:13), hy2=py+(eyeIndex?13:10);
         if (hx1*hx1+hy1*hy1<72 || hx2*hx2+hy2*hy2<14) colour=TFT_WHITE;
 
         static const int8_t stars[][2]={{-25,-5},{19,-25},{27,17},{-17,29},{7,35}};
         uint32_t phase=millis()/140;
         for (uint8_t i=0;i<5;++i) {
-          int sx=px-stars[i][0], sy=py-stars[i][1];
+          // Offset each right-eye star independently instead of cloning the
+          // left eye's constellation. Twinkle phases differ as well.
+          int starX=stars[i][0]+(eyeIndex?((i*7)%9-4):0);
+          int starY=stars[i][1]+(eyeIndex?((i*5)%7-3):0);
+          int sx=px-starX, sy=py-starY;
           // Each star pulses on a different phase. At peak it grows a crisp
           // four-point cross, producing a visible glimmer rather than noise.
-          int reach=((phase+i*3)%11<4)?3:1;
+          int reach=((phase+i*3+eyeIndex*5)%11<4)?3:1;
           if ((abs(sx)==0 && abs(sy)<=reach) ||
               (abs(sy)==0 && abs(sx)<=reach) ||
               (reach==3 && abs(sx)==1 && abs(sy)==1)) {
