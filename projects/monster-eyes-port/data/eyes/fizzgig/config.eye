@@ -13,12 +13,10 @@
   "tracking"    : false,
   "lightSensor" : 102,
   "extensions" : {
-    "purpleEsp32" : {
-      "audio" : {
-        "sounds" : [ "growl.wav", "bark.wav", "angry.wav" ],
-        "minInterval" : 12000,
-        "maxInterval" : 30000
-      }
+    "audio" : {
+      "sounds" : [ "growl.wav", "bark.wav", "angry.wav" ],
+      "minInterval" : 12000,
+      "maxInterval" : 30000
     }
   },
   "left" : {

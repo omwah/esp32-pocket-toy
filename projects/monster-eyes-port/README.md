@@ -13,6 +13,8 @@ Wi-Fi, and overlays reach feature parity with the production application.
 - Reads and applies package `config.eye` files through the Monster Eyes JSON parser.
 - Loads standard 24-bit texture BMPs and 1-bit eyelid BMPs from FATFS.
 - Includes all 14 upstream M4 EYES packages and scales their geometry at runtime.
+- Adds directly installable Owl, Realistic Deer, and Big Anime packages generated
+  from the locally modified production artwork, including package-local sounds.
 - Discovers package directories under `/eyes`; eye names and paths are not
   compiled into firmware.
 - Resolves package-relative asset paths and reconstructs the renderer safely
@@ -34,12 +36,10 @@ Optional package sounds are declared relative to `config.eye`:
 
 ```json
 "extensions": {
-  "purpleEsp32": {
-    "audio": {
-      "sounds": ["growl.wav", "bark.wav"],
-      "minInterval": 12000,
-      "maxInterval": 30000
-    }
+  "audio": {
+    "sounds": ["growl.wav", "bark.wav"],
+    "minInterval": 12000,
+    "maxInterval": 30000
   }
 }
 ```
@@ -68,10 +68,9 @@ micromamba run -n platformio pio run -d projects/uncanny-eyes -t upload
 
 ## Remaining migration work
 
-1. Convert the remaining locally modified styles into EYES package folders and
-   associate their existing sounds.
+1. Convert the remaining upstream Uncanny Eyes styles into EYES package folders
+   and associate their existing sounds.
 2. Add package ordering to the persistent registry.
 3. Add atomic web upload, validation, download, rename, and deletion.
-4. Add namespaced configuration extensions for local visual effects.
-5. Compare every migrated style against the production renderer before replacing
+4. Compare every migrated style against the production renderer before replacing
    it.
