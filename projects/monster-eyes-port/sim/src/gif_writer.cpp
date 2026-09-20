@@ -256,14 +256,17 @@ bool GifWriter::write(const std::string &path, int delayMs,
                       (uint8_t)(rgb >> 8), (uint8_t)rgb});
   }
 
+  // One index is kept back for transparency, which is what lets a frame say
+  // "unchanged since the last one" instead of repeating the pixel.
+  const size_t maxColors = 255;
   std::vector<uint32_t> palette;
-  if (colors.size() <= 256) {
+  if (colors.size() <= maxColors) {
     // Few enough to keep exactly, which is common: these are flat-shaded eyes
     // on a plain background.
     for (const ColorCount &c : colors)
       palette.push_back(expand565(c.rgb565));
   } else {
-    palette = medianCut(colors, 256);
+    palette = medianCut(colors, maxColors);
   }
   if (palette.empty())
     palette.push_back(0);
@@ -292,9 +295,12 @@ bool GifWriter::write(const std::string &path, int delayMs,
     lookup[entry.first] = (uint8_t)bestIndex;
   }
 
-  // GIF's colour table must be a power of two, at least 4 entries.
+  const uint8_t transparentIndex = (uint8_t)palette.size();
+
+  // GIF's colour table must be a power of two, at least 4 entries, and must
+  // have room for the transparent index as well as the colours.
   int bits = 2;
-  while ((1u << bits) < palette.size())
+  while ((1u << bits) < palette.size() + 1)
     ++bits;
   const size_t tableSize = (size_t)1 << bits;
 
@@ -326,29 +332,70 @@ bool GifWriter::write(const std::string &path, int delayMs,
   putShort(file, 0);
   putByte(file, 0);
 
+  // Each frame carries only what changed since the one before, inside the
+  // smallest rectangle that holds it, with everything else transparent so the
+  // previous pixels show through. An eye is a small moving thing on a large
+  // still background, so most of the picture is sent once rather than thirty
+  // times a second.
   const int delayCentis = (delayMs + 5) / 10;
-  std::vector<uint8_t> indices((size_t)outW * outH);
-  for (const auto &frame : _frames) {
+  std::vector<uint8_t> indices;
+  for (size_t f = 0; f < _frames.size(); ++f) {
+    const std::vector<uint16_t> &frame = _frames[f];
+    const std::vector<uint16_t> *prev = f ? &_frames[f - 1] : nullptr;
+
+    // The dirty rectangle, in source pixels.
+    int x0 = 0, y0 = 0, x1 = _width - 1, y1 = _height - 1;
+    if (prev) {
+      x0 = _width;
+      y0 = _height;
+      x1 = -1;
+      y1 = -1;
+      for (int y = 0; y < _height; ++y) {
+        for (int x = 0; x < _width; ++x) {
+          if (frame[(size_t)y * _width + x] == (*prev)[(size_t)y * _width + x])
+            continue;
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+          if (y < y0) y0 = y;
+          if (y > y1) y1 = y;
+        }
+      }
+      if (x1 < x0) {
+        // Nothing moved. A one-pixel transparent frame still holds the delay.
+        x0 = y0 = 0;
+        x1 = y1 = 0;
+      }
+    }
+
+    const int boxW = (x1 - x0 + 1) * _scale, boxH = (y1 - y0 + 1) * _scale;
+
     putByte(file, 0x21); // Graphic control extension
     putByte(file, 0xF9);
     putByte(file, 4);
-    putByte(file, 0); // No transparency, no disposal
+    // Disposal 1, leave in place, so the untouched pixels stay on screen.
+    putByte(file, (uint8_t)(0x04 | (prev ? 0x01 : 0x00)));
     putShort(file, (uint16_t)(delayCentis < 1 ? 1 : delayCentis));
-    putByte(file, 0);
+    putByte(file, prev ? transparentIndex : 0);
     putByte(file, 0);
 
     putByte(file, 0x2C); // Image descriptor
-    putShort(file, 0);
-    putShort(file, 0);
-    putShort(file, (uint16_t)outW);
-    putShort(file, (uint16_t)outH);
+    putShort(file, (uint16_t)(x0 * _scale));
+    putShort(file, (uint16_t)(y0 * _scale));
+    putShort(file, (uint16_t)boxW);
+    putShort(file, (uint16_t)boxH);
     putByte(file, 0);
 
-    for (int y = 0; y < outH; ++y) {
-      const uint16_t *src = &frame[(size_t)(y / _scale) * _width];
-      uint8_t *dst = &indices[(size_t)y * outW];
-      for (int x = 0; x < outW; ++x)
-        dst[x] = lookup[src[x / _scale]];
+    indices.resize((size_t)boxW * boxH);
+    for (int y = 0; y < boxH; ++y) {
+      const int sy = y0 + y / _scale;
+      uint8_t *dst = &indices[(size_t)y * boxW];
+      for (int x = 0; x < boxW; ++x) {
+        const int sx = x0 + x / _scale;
+        const uint16_t c = frame[(size_t)sy * _width + sx];
+        dst[x] = (prev && c == (*prev)[(size_t)sy * _width + sx])
+                     ? transparentIndex
+                     : lookup[c];
+      }
     }
 
     std::vector<uint8_t> lzw;
