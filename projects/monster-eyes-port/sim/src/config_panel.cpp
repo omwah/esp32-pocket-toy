@@ -230,6 +230,13 @@ bool boolRow(ConfigDocument &doc, const char *label, const char *key,
   return changed;
 }
 
+/** @brief One line under a section header saying what the section is for. */
+void sectionNote(const char *text) {
+  ImGui::PushTextWrapPos(0.0f);
+  ImGui::TextDisabled("%s", text);
+  ImGui::PopTextWrapPos();
+}
+
 /** @brief A checkbox bound to extensions.<feature>.<key>.
  *  @return true if it changed. */
 bool extBoolRow(ConfigDocument &doc, const char *label, const char *feature,
@@ -316,24 +323,9 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
   const EyesSettings &now = defaults;
   bool changed = false;
 
-  if (ImGui::CollapsingHeader("Animation", ImGuiTreeNodeFlags_DefaultOpen)) {
-    // These live under extensions rather than at the root, alongside the
-    // audio block the sketch reads, because they are behaviour rather than
-    // the renderer's geometry. Both default to on.
-    changed |= extBoolRow(doc, "autoGaze", "animation", "autoGaze", true,
-                          "Let the eye look around on its own. Off holds the "
-                          "gaze still, for a package that should stare.");
-    changed |= extBoolRow(doc, "autoBlink", "animation", "autoBlink", true,
-                          "Let the eye blink on its own. Off means it never "
-                          "blinks.");
-    ImGui::PushTextWrapPos(0.0f);
-    ImGui::TextDisabled("Saved under extensions.animation; the firmware reads "
-                        "these too.");
-    ImGui::PopTextWrapPos();
-  }
-
   if (ImGui::CollapsingHeader("Geometry and pupil",
                               ImGuiTreeNodeFlags_DefaultOpen)) {
+    sectionNote("Eyeball and pupil sizes, in config pixels not screen.");
     changed |= intRow(doc, "eyeRadius", "eyeRadius", now.eyeRadius, 0, 250,
                       "Eyeball radius, 0 to derive it. In the config's own "
                       "pixel space, which begin() rescales to the display.");
@@ -368,9 +360,7 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
   }
 
   if (ImGui::CollapsingHeader("Colours", ImGuiTreeNodeFlags_DefaultOpen)) {
-    ImGui::PushTextWrapPos(0.0f);
-    ImGui::TextDisabled("Used where a texture is missing.");
-    ImGui::PopTextWrapPos();
+    sectionNote("Used where a texture is missing.");
     changed |= colorRow(doc, "irisColor", "irisColor", now.irisColor,
                         "Flat iris colour, used when irisTexture is missing "
                         "or is a 1x1 bitmap.");
@@ -387,34 +377,61 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
                         "cleared to.");
   }
 
-  if (ImGui::CollapsingHeader("Motion and iris flow")) {
-    changed |= floatRow(doc, "irisSpin", "irisSpin", now.irisSpin, -30.0f,
-                        30.0f, "%.2f rpm", "Positive is clockwise.");
-    changed |= floatRow(doc, "scleraSpin", "scleraSpin", now.scleraSpin, -30.0f,
-                        30.0f, "%.2f rpm", nullptr);
-    // Stored as 1023 - angle, so the panel shows what the file would say.
-    changed |= intRow(doc, "irisAngle", "irisAngle",
-                      (1023 - now.irisStartAngle) & 1023, 0, 1023,
-                      "Initial iris rotation, 0-1023 counter-clockwise.");
-    changed |= intRow(doc, "scleraAngle", "scleraAngle",
-                      (1023 - now.scleraStartAngle) & 1023, 0, 1023, nullptr);
-    changed |= boolRow(doc, "irisMirror", "irisMirror", now.irisMirror != 0,
-                       "Mirror the iris texture.");
-    changed |= boolRow(doc, "scleraMirror", "scleraMirror",
-                       now.scleraMirror != 0, nullptr);
+  if (ImGui::CollapsingHeader("Animation", ImGuiTreeNodeFlags_DefaultOpen)) {
+    // These live under extensions rather than at the root, alongside the
+    // audio block the sketch reads, because they are behaviour rather than
+    // the renderer's geometry. Both default to on.
+    sectionNote("What the eye does when nothing is steering it.");
+    changed |= extBoolRow(doc, "autoGaze", "animation", "autoGaze", true,
+                          "Let the eye look around on its own. Off holds the "
+                          "gaze still, for a package that should stare.");
+    changed |= extBoolRow(doc, "autoBlink", "animation", "autoBlink", true,
+                          "Let the eye blink on its own. Off means it never "
+                          "blinks.");
     changed |= intRow(doc, "gazeMax", "gazeMax", (int)now.gazeMax, 100000,
                       10000000,
                       "Longest wait between major eye movements, in "
-                      "microseconds.");
+                      "microseconds. Only matters with autoGaze on.");
+  }
+
+  if (ImGui::CollapsingHeader("Rotation")) {
+    sectionNote("Spins the iris and sclera textures in place.");
+    changed |= floatRow(doc, "irisSpin", "irisSpin", now.irisSpin, -30.0f,
+                        30.0f, "%.2f rpm",
+                        "Turn the iris texture continuously. Positive is "
+                        "clockwise, 0 holds it still.");
+    changed |= floatRow(doc, "scleraSpin", "scleraSpin", now.scleraSpin, -30.0f,
+                        30.0f, "%.2f rpm",
+                        "Turn the sclera texture continuously.");
+    // Stored as 1023 - angle, so the panel shows what the file would say.
+    changed |= intRow(doc, "irisAngle", "irisAngle",
+                      (1023 - now.irisStartAngle) & 1023, 0, 1023,
+                      "Where the iris texture starts, 0-1023 "
+                      "counter-clockwise.");
+    changed |= intRow(doc, "scleraAngle", "scleraAngle",
+                      (1023 - now.scleraStartAngle) & 1023, 0, 1023,
+                      "Where the sclera texture starts, 0-1023 "
+                      "counter-clockwise.");
+    changed |= boolRow(doc, "irisMirror", "irisMirror", now.irisMirror != 0,
+                       "Mirror the iris texture, reversing which way its "
+                       "detail runs.");
+    changed |= boolRow(doc, "scleraMirror", "scleraMirror",
+                       now.scleraMirror != 0, "Mirror the sclera texture.");
+  }
+
+  if (ImGui::CollapsingHeader("Iris flow")) {
+    sectionNote("Iris creeps along a moving wave, without turning.");
     changed |= floatRow(doc, "irisFlow", "irisFlow", now.irisFlow, 0.0f, 1.0f,
-                        "%.3f", "Peak sample shift, as a fraction of iris "
-                                "depth.");
+                        "%.3f",
+                        "How far the sampling shifts at the peak, as a "
+                        "fraction of iris depth. 0 switches the effect off.");
     changed |= floatRow(doc, "irisFlowSpeed", "irisFlowSpeed",
                         now.irisFlowSpeed, -10.0f, 10.0f, "%.2f",
-                        "Wave crests leaving the pupil per second.");
+                        "Wave crests leaving the pupil per second. Negative "
+                        "draws them inward.");
     changed |= floatRow(doc, "irisFlowWaves", "irisFlowWaves",
                         now.irisFlowWaves, 0.0f, 20.0f, "%.2f",
-                        "Crests between the pupil and the rim.");
+                        "How many crests sit between the pupil and the rim.");
   }
 
   ImGui::PopItemWidth();

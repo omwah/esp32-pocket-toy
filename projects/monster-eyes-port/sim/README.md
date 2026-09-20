@@ -102,12 +102,13 @@ right and down to make room.
 ./sim/build/eye-sim --eye hazel --panel --panel-width 460
 ```
 
-It covers the animation switches, geometry and pupil, colours, and motion and
-iris flow. Texture paths and the per-eye `left`/`right` blocks are not exposed;
-edit those in the file.
+It is grouped as geometry and pupil, colours, animation, rotation and iris flow.
+Texture paths and the per-eye `left`/`right` blocks are not exposed; edit those
+in the file.
 
 The Animation section writes `extensions.animation.autoGaze` and `autoBlink`,
-which hold the eye still or stop it blinking. Those are read by the renderer,
+which hold the eye still or stop it blinking, and carries `gazeMax` alongside
+them since that is how long the eye waits between movements. Those are read by the renderer,
 not by the simulator, so a package saved with them set behaves the same way on
 the board. `--no-auto-gaze` and `--no-auto-blink` still override the file, but
 only when actually given: without them the config decides. The `g` and `b` keys
