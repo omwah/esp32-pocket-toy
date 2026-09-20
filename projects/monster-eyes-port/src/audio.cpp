@@ -126,6 +126,7 @@ void Audio::setPackage(const char *configPath) {
     _length = _position = 0;
     portEXIT_CRITICAL(&_mux);
     _sounds.clear();
+    _nextSound = 0;
     _minInterval = 12000;
     _maxInterval = 30000;
     File f = FFat.open(configPath);
@@ -201,6 +202,26 @@ void Audio::update(uint32_t now) {
         return;
     loadWav(_sounds[random(_sounds.size())]);
     schedule(now);
+}
+
+// Play the next sound in package order, for the web interface's play button.
+// Automatic playback picks at random; walking the list instead means repeated
+// presses audition the whole package rather than replaying one file.
+bool Audio::playNext() {
+    if (!_ok || _muted || _sounds.empty()) return false;
+    // loadWav() reallocates and refills the sample buffer, so silence the
+    // render task before touching it. update() only ever calls loadWav() when
+    // nothing is playing; a button press can land mid-sound.
+    portENTER_CRITICAL(&_mux);
+    _playing = false;
+    _length = _position = 0;
+    portEXIT_CRITICAL(&_mux);
+    const String path = _sounds[_nextSound];
+    _nextSound = (_nextSound + 1) % _sounds.size();
+    // Push the idle timer out so an automatic sound does not tread on the
+    // one just asked for.
+    schedule(millis());
+    return loadWav(path);
 }
 
 void Audio::setMuted(bool m) {

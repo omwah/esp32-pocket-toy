@@ -54,9 +54,18 @@ function renderStatus() {
 function renderAudio() {
   q('mute').textContent = s.muted ? 'Unmute' : 'Mute';
   q('mute').disabled = !s.audioPresent;
+  // The device refuses a play while muted or with a silent package, so say so
+  // in the button rather than letting the press fail quietly.
+  q('play').disabled = !s.audioPresent || !s.hasSound || s.muted;
   q('volume').disabled = !s.audioPresent;
   set(q('volume'), s.volume);
   if (document.activeElement !== q('volume')) q('volpct').textContent = s.volume + '%';
+}
+
+function renderBrightness() {
+  set(q('brightness'), s.brightness);
+  if (document.activeElement !== q('brightness'))
+    q('brightpct').textContent = s.brightness + '%';
 }
 
 function renderStyles() {
@@ -94,6 +103,7 @@ async function refresh() {
   }
   renderStatus();
   renderAudio();
+  renderBrightness();
   renderStyles();
   renderPackages();
   q('cycle').textContent = s.cycle ? 'Disable cycle' : 'Enable cycle';
@@ -164,6 +174,8 @@ async function uploadPackage() {
 // single-threaded web server from the render loop, so only commit on release.
 q('volume').addEventListener('input', function () { q('volpct').textContent = this.value + '%'; });
 q('volume').addEventListener('change', function () { post('/api/audio/volume', { volume: this.value }); });
+q('brightness').addEventListener('input', function () { q('brightpct').textContent = this.value + '%'; });
+q('brightness').addEventListener('change', function () { post('/api/display/brightness', { brightness: this.value }); });
 q('style').addEventListener('change', function () { post('/api/style', { style: this.value }); });
 
 addEventListener('hashchange', function () { show(location.hash.slice(1)); });

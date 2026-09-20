@@ -6,12 +6,18 @@
 #include <WiFi.h>
 #include "monster_controller.h"
 #include "audio.h"
+#include "backlight.h"
 #include "package_storage.h"
 
 class WebControl {
 public:
-    WebControl(MonsterController &eyes, Audio &audio, int &battery)
-        : _eyes(eyes), _audio(audio), _battery(battery), _server(80) {}
+    WebControl(MonsterController &eyes, Audio &audio, int &battery,
+               Backlight &backlight)
+        : _eyes(eyes),
+          _audio(audio),
+          _battery(battery),
+          _backlight(backlight),
+          _server(80) {}
     void begin(bool forceProvisioning = false);
     void update(uint32_t now);
     void stop();
@@ -33,6 +39,7 @@ private:
     MonsterController &_eyes;
     Audio &_audio;
     int &_battery;
+    Backlight &_backlight;
     WebServer _server;
     DNSServer _dns;
     PackageStorage _storage;

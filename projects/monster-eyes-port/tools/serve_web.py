@@ -29,6 +29,7 @@ state = {
     "hasSound": True,
     "muted": False,
     "volume": 70,
+    "brightness": 100,
     "externalPower": "unknown",
     "cycle": False,
     "interval": 30,
@@ -74,6 +75,10 @@ class Handler(SimpleHTTPRequestHandler):
             state["muted"] = args.get("muted") in ("true", "1")
         elif path == "/api/audio/volume":
             state["volume"] = int(args.get("volume", state["volume"]))
+        elif path == "/api/audio/play":
+            pass  # The real device starts a sound here; nothing to model.
+        elif path == "/api/display/brightness":
+            state["brightness"] = int(args.get("brightness", state["brightness"]))
         elif path == "/api/style":
             state["style"] = int(args.get("style", state["style"]))
             state["styleName"] = state["styles"][state["style"]]

@@ -7,19 +7,21 @@
 #include "web_control.h"
 #include "board_config.h"
 #include "audio.h"
+#include "backlight.h"
 
 TFT_eSPI display;
 CompositeTftDisplay backend(display);
 MonsterController monster(backend);
 Touch touch;
 Audio audio;
+Backlight backlight;
 bool wasTouched = false;
 bool sleepCandidate = false;
 uint32_t touchStartedAt = 0;
 int touchStartX = 0;
 int touchStartY = 0;
 int batteryPercent = -1;
-WebControl web(monster, audio, batteryPercent);
+WebControl web(monster, audio, batteryPercent, backlight);
 bool controlsVisible = false;
 bool controlsDirty = false;
 bool flipped = false;
@@ -80,7 +82,7 @@ void enterDeepSleep() {
     web.stop();
     display.writecommand(TFT_DISPOFF);
     display.writecommand(0x10);
-    digitalWrite(TFT_BL, LOW);
+    backlight.off();
     pinMode(AUDIO_AMP_ENABLE, OUTPUT);
     digitalWrite(AUDIO_AMP_ENABLE, HIGH);
     pinMode(TOUCH_RST, OUTPUT);
@@ -187,6 +189,8 @@ void setup() {
     // needs byte swapping enabled before sending those words over SPI.
     display.setSwapBytes(true);
     display.fillScreen(TFT_BLACK);
+    // After init(), which claims TFT_BL as a plain output itself.
+    backlight.begin();
 
     if (!monster.begin()) {
         display.setTextColor(TFT_RED, TFT_BLACK);

@@ -74,12 +74,24 @@ python projects/monster-eyes-port/tools/serve_web.py
 
 and open `http://localhost:8000`. It serves `web/` alongside a fake device API.
 
-The page has two tabs. Controls holds status, style selection, audio (mute and
-volume), cycling, and Wi-Fi setup. Packages holds the package list and the
-upload form, so the default view stays short on a phone.
+The page has two tabs. Controls holds status, style selection, audio (mute,
+play, and volume), screen brightness, cycling, and Wi-Fi setup. Packages holds
+the package list and the upload form, so the default view stays short on a
+phone.
 
-Audio is controlled through `POST /api/audio/mute` (`muted`) and
-`POST /api/audio/volume` (`volume`, 0-100).
+Audio is controlled through `POST /api/audio/mute` (`muted`),
+`POST /api/audio/volume` (`volume`, 0-100), and `POST /api/audio/play`, which
+starts the next sound in the active package and steps a cursor so repeated
+presses walk the whole package rather than replaying one file. Automatic
+playback stays random. Play answers 409 when the codec is missing, audio is
+muted, or the package has no sounds.
+
+Screen brightness is `POST /api/display/brightness` (`brightness`, 0-100),
+reported back in the status JSON. The backlight is driven by an LEDC PWM
+channel on `TFT_BL` and the level is stored in NVS, so it survives a reboot.
+Values below 5% are clamped up: a screen dark enough to look broken would hide
+the control that turns it back up. Deep sleep hands the pin back to plain GPIO
+before driving it dark.
 
 ## Web package management
 

@@ -10,6 +10,7 @@ public:
     bool begin();
     void setPackage(const char *configPath);
     void update(uint32_t now);
+    bool playNext();
     void setMuted(bool muted);
     bool muted() const { return _muted; }
     void setVolume(uint8_t percent);
@@ -31,6 +32,7 @@ private:
     TaskHandle_t _task = nullptr;
     portMUX_TYPE _mux = portMUX_INITIALIZER_UNLOCKED;
     std::vector<String> _sounds;
+    size_t _nextSound = 0;
     uint8_t *_data = nullptr;
     size_t _capacity = 0, _length = 0, _position = 0;
     uint8_t _bits = 0, _channels = 0;

@@ -98,6 +98,16 @@ void WebControl::startServer() {
             _audio.setVolume(_server.arg("volume").toInt());
         _server.send(204);
     });
+    _server.on("/api/audio/play", HTTP_POST, [this] {
+        // 409 rather than 400: the request is well formed, there is just
+        // nothing to play right now.
+        _server.send(_audio.playNext() ? 204 : 409);
+    });
+    _server.on("/api/display/brightness", HTTP_POST, [this] {
+        if (_server.hasArg("brightness"))
+            _backlight.setPercent(_server.arg("brightness").toInt());
+        _server.send(204);
+    });
     _server.on("/api/style", HTTP_POST, [this] {
         if (_server.hasArg("style")) {
             _eyes.setStyle(_server.arg("style").toInt());
@@ -242,6 +252,7 @@ String WebControl::statusJson() const {
         ",\"hasSound\":" + (_audio.hasSound() ? "true" : "false") +
         ",\"muted\":" + (_audio.muted() ? "true" : "false") +
         ",\"volume\":" + String(_audio.volume()) +
+        ",\"brightness\":" + String(_backlight.percent()) +
         ",\"externalPower\":\"unknown\",\"cycle\":" +
         (_cycle ? "true" : "false") +
         ",\"interval\":" + String(_interval / 1000) + ",\"wifi\":\"" +
