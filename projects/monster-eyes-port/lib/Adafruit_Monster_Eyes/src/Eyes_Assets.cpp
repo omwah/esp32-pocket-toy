@@ -624,6 +624,16 @@ void Adafruit_Monster_Eyes::applyConfigRoot(const void *variantPtr) {
   if (v.is<float>() || v.is<int>())
     _settings.scleraSpin = v.as<float>();
 
+  v = o["irisFlow"];
+  if (v.is<float>() || v.is<int>())
+    _settings.irisFlow = v.as<float>();
+  v = o["irisFlowSpeed"];
+  if (v.is<float>() || v.is<int>())
+    _settings.irisFlowSpeed = v.as<float>();
+  v = o["irisFlowWaves"];
+  if (v.is<float>() || v.is<int>())
+    _settings.irisFlowWaves = v.as<float>();
+
   v = o["irisAngle"];
   if (v.is<int>())
     _settings.irisStartAngle = 1023 - (v.as<int>() & 1023);

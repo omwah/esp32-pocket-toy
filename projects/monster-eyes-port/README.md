@@ -212,6 +212,32 @@ out of the way" for both its open and its closed position, so the blink timer
 still runs but moves nothing: the Eye does not blink and no lid ever crosses
 the fire.
 
+## Radial flow
+
+`irisFlow` animates an iris without turning it. The renderer already had
+`irisSpin`, which rotates the texture, and for anything whose pattern means
+something -- fire reaching outward, spokes, rays -- rotation is exactly the
+wrong motion.
+
+Flow instead samples each pixel a little nearer to or further from the pupil
+than it actually sits, on a wave that travels out from the pupil. Heat drawn
+at one depth in the texture shows up at another, so tongues of flame stretch
+outward and sink back. Three keys control it:
+
+- `irisFlow`: peak shift as a fraction of the iris depth. 0, the default,
+  leaves the texture sampled where it sits.
+- `irisFlowSpeed`: wave crests leaving the pupil per second.
+- `irisFlowWaves`: crests between the pupil and the rim.
+
+The eye is divided into 64 sectors, each with its own phase, so crests do not
+arrive everywhere at once -- without that it ripples like a pond rather than
+burning. The wave is a skewed sine that rises fast and falls back slowly,
+because fire throws material out and lets it sink. The shift fades to nothing
+at the pupil, so a hot collar around the pupil does not wobble, and the pupil
+test uses the undisplaced row, so the pupil's own edge never moves.
+
+Per pixel this is a table lookup, a multiply and a divide.
+
 ## Screenshots
 
 `GET /api/frame` returns a screenshot of the panel as a 320x240 24-bit BMP, and

@@ -76,6 +76,9 @@ void Adafruit_Monster_Eyes::applyDefaults(void) {
   _settings.gazeMax = 3000000;
   _settings.irisSpin = 0.0f;
   _settings.scleraSpin = 0.0f;
+  _settings.irisFlow = 0.0f; // Off: the texture is sampled where it sits
+  _settings.irisFlowSpeed = 1.0f;
+  _settings.irisFlowWaves = 2.0f;
   _settings.irisStartAngle = 512;
   _settings.scleraStartAngle = 512;
   _settings.eyelidMirror = true;
@@ -718,6 +721,8 @@ bool Adafruit_Monster_Eyes::begin(void) {
     return false;
   }
 
+  flowInit();
+
   // Nothing else reads the filesystem; let go of it so flash stays quiet.
   if (_storageEnabled)
     storageEnd();
@@ -1045,6 +1050,11 @@ void Adafruit_Monster_Eyes::renderEye(uint8_t e) {
   const int iPupilFactor =
       (int)((float)irisH * 256.0f * (1.0f / E.pupilFactor));
   const uint16_t irisAngle = E.irisAngle;
+  const int flowAmp = _flowAmp;
+  const uint16_t flowWaveQ = _flowWaveQ;
+  const uint8_t flowTime = _flowTime;
+  const int8_t *flowSin = _flowSin;
+  const uint8_t *flowPhase = _flowPhase;
   const uint16_t pupilColor = out16(_settings.pupilColor);
   const uint16_t backColor = out16(_settings.backColor);
   const uint16_t eyelidColor = out16(_settings.eyelidColor);
@@ -1179,7 +1189,25 @@ void Adafruit_Monster_Eyes::renderEye(uint8_t e) {
         } else {
           const int a = ((angle + irisAngle) & 1023) ^ irisMirror;
           const int tx = (a * irisW) >> 10;
-          *dst = iris[ty * irisW + tx];
+          int row = ty;
+          if (flowAmp) {
+            // Where along the wave this pixel sits: how deep into the iris it
+            // is, plus its sector's phase, minus the phase of the moment. The
+            // pupil test above used the undisplaced row, so the pupil's edge
+            // stays exactly where the map put it however the fire moves.
+            const uint8_t at = (uint8_t)(((ty * flowWaveQ) >> 8) +
+                                         flowPhase[(angle >> 4) & 63] +
+                                         flowTime);
+            // Full strength at the rim, nothing at the pupil, so the hot
+            // collar around the slit does not wobble.
+            const int fade = irisH - ty;
+            row += (flowSin[at] * flowAmp * fade) / (irisH * 127);
+            if (row < 0)
+              row = 0;
+            else if (row >= irisH)
+              row = irisH - 1;
+          }
+          *dst = iris[row * irisW + tx];
         }
       } else {
         *dst = backColor; // Back of eye
@@ -1198,10 +1226,53 @@ void Adafruit_Monster_Eyes::renderEye(uint8_t e) {
 //  FRAME
 // ===========================================================================
 
+// Tables for the radial flow. The sine is the wave itself; the phase table
+// breaks the eye into 64 sectors and gives each its own head start, so the
+// crests do not arrive everywhere at once and the fire looks like flames
+// rather than a ripple in a pond. The phases are interpolated from sixteen
+// random values, because sector-by-sector randomness reads as noise, not
+// flame.
+void Adafruit_Monster_Eyes::flowInit(void) {
+  _flowTime = 0;
+  _flowAmp = (int16_t)(_settings.irisFlow * (float)_irisH + 0.5f);
+  if (_flowAmp < 0)
+    _flowAmp = 0;
+  _flowWaveQ = (uint16_t)(_settings.irisFlowWaves * 256.0f + 0.5f);
+  if (!_flowAmp)
+    return;
+
+  // A skewed sine rather than a plain one: the phase is warped so the wave
+  // rises quickly and falls back slowly. A plain sine breathes, evenly out and
+  // evenly back; fire throws material out and lets it sink, and the asymmetry
+  // is most of what makes the difference between the two.
+  for (int i = 0; i < 256; i++) {
+    const float x = (float)i / 256.0f;
+    const float warped = x + 0.22f * sinf(x * (float)(2.0 * M_PI));
+    _flowSin[i] = (int8_t)(sinf(warped * (float)(2.0 * M_PI)) * 127.0f);
+  }
+
+  uint8_t anchors[16];
+  for (int i = 0; i < 16; i++)
+    anchors[i] = (uint8_t)random(256);
+  for (int i = 0; i < 64; i++) {
+    const int a = i >> 2, f = i & 3;
+    const int lo = anchors[a], hi = anchors[(a + 1) & 15];
+    _flowPhase[i] = (uint8_t)(lo + (((hi - lo) * f) >> 2));
+  }
+}
+
 void Adafruit_Monster_Eyes::update(void) {
   if (!_begun)
     return;
   _frameMicros = micros();
+
+  if (_flowAmp) {
+    // Wrapping at 256 makes the wave loop seamlessly; the multiply is done in
+    // milliseconds so a slow speed still advances smoothly.
+    const uint32_t ms = _frameMicros / 1000;
+    _flowTime = (uint8_t)((uint32_t)(ms * _settings.irisFlowSpeed * 0.256f) &
+                          0xFF);
+  }
 
   if (_autoGaze && !_gazeExternal)
     updateGaze(_frameMicros);

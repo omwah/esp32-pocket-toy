@@ -68,6 +68,14 @@ struct EyesSettings {
   float scleraSpin;          ///< Sclera rotation in RPM
   uint16_t irisStartAngle;   ///< Initial iris rotation, 0-1023 CCW
   uint16_t scleraStartAngle; ///< Initial sclera rotation, 0-1023 CCW
+  // Radial flow: waves travelling out through the iris texture. Rather than
+  // moving the texture, each pixel is sampled a little nearer or further from
+  // the pupil than it sits, so what was drawn at one depth in the texture
+  // appears at another. On a fire iris that carries the heat outward; on an
+  // ordinary one it is a slow shimmer. Nothing rotates.
+  float irisFlow;            ///< Peak sample shift, fraction of iris depth
+  float irisFlowSpeed;       ///< Wave crests leaving the pupil per second
+  float irisFlowWaves;       ///< Crests between the pupil and the rim
   uint16_t irisMirror;       ///< 0 or 1023; 1023 mirrors the iris texture
   uint16_t scleraMirror;     ///< 0 or 1023; 1023 mirrors the sclera
   bool eyelidMirror;         ///< Mirror the eyelid shape horizontally
@@ -703,6 +711,12 @@ private:
   const uint16_t *_scleraData; ///< Sclera texture, or a 1x1 solid colour
   uint16_t _irisW;             ///< Iris texture width
   uint16_t _irisH;             ///< Iris texture height
+  int8_t _flowSin[256];        ///< Quarter-amplitude sine, -127..127
+  uint8_t _flowPhase[64];      ///< Per-sector phase, so rays are not in step
+  uint8_t _flowTime;           ///< Wave phase now, advanced by update()
+  int16_t _flowAmp;            ///< Peak shift in texture rows, Q0
+  uint16_t _flowWaveQ;         ///< Crests across the iris, in 1/256 turns
+  void flowInit(void);         ///< Build the flow tables from the settings
   uint16_t _scleraW;           ///< Sclera texture width
   uint16_t _scleraH;           ///< Sclera texture height
   uint16_t _irisSolid;         ///< 1x1 fallback storage
