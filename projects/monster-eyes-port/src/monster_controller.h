@@ -27,6 +27,16 @@ public:
     void animate() {
         if (_eyes) _eyes->animate();
     }
+    // Draw one frame with the panel mirror armed and hand it back, for the
+    // screenshot endpoint. Null if there is no renderer or no buffer to be
+    // had. Everything here runs on the loop task, the same one that would
+    // have drawn this frame anyway, so there is nothing to synchronise.
+    const uint16_t *captureFrame() {
+        if (!_eyes || !_display.armCapture()) return nullptr;
+        _eyes->animate();
+        _display.disarmCapture();
+        return _display.mirror();
+    }
     void setGaze(float x, float y) {
         if (_eyes) _eyes->setGaze(x, y);
     }

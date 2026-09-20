@@ -212,6 +212,23 @@ out of the way" for both its open and its closed position, so the blink timer
 still runs but moves nothing: the Eye does not blink and no lid ever crosses
 the fire.
 
+## Screenshots
+
+`GET /api/frame` returns a screenshot of the panel as a 320x240 24-bit BMP, and
+the web interface shows it under a Screen tab with a capture button, a live
+mode and a download link.
+
+The panel cannot be read back: MISO is not dependable on this board and an
+ILI9341 returns mangled 18-bit data anyway. Instead the display backend keeps a
+mirror of the panel in PSRAM, and the request arms it, draws one frame, and
+serves the mirror. The render loop is the only writer and the request runs on
+that same task, so there is nothing to synchronise and nothing to copy on a
+frame nobody asked about.
+
+What it captures is the two eyes and the background they sit on. The status
+icons and the touch controls are drawn straight to the TFT by the sketch, so
+they never pass through the backend and are not in the picture.
+
 ## Migration validation
 
 `validation/migrated-styles.json` records the accepted result and intentional

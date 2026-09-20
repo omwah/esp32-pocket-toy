@@ -20,13 +20,19 @@ function set(el, value) {
   if (document.activeElement !== el) el.value = value;
 }
 
+var TABS = ['c', 'p', 's'];
+
 function show(tab) {
-  var controls = tab !== 'p';
-  q('panel-c').hidden = !controls;
-  q('panel-p').hidden = controls;
-  q('tab-c').setAttribute('aria-selected', controls);
-  q('tab-p').setAttribute('aria-selected', !controls);
+  if (TABS.indexOf(tab) < 0) tab = 'c';
+  TABS.forEach(function (t) {
+    q('panel-' + t).hidden = t !== tab;
+    q('tab-' + t).setAttribute('aria-selected', t === tab);
+  });
   if (location.hash.slice(1) !== tab) location.hash = tab;
+  // Live capture costs the device a whole extra frame per request, so it only
+  // runs while its own tab is open.
+  if (tab !== 's') stopLive();
+  else if (!q('shot').src) capture();
 }
 
 async function post(url, data) {
@@ -174,6 +180,40 @@ async function uploadPackage() {
   q('packageFiles').value = '';
   refresh();
 }
+
+// Screenshots. The device serves a BMP built from a mirror of the panel, and
+// the cache-buster is what makes each request a fresh frame rather than the
+// one the browser already has.
+var liveTimer = null;
+
+function capture() {
+  q('shot').src = '/api/frame?t=' + Date.now();
+}
+
+function stopLive() {
+  if (liveTimer) clearInterval(liveTimer);
+  liveTimer = null;
+  q('live').textContent = 'Start live';
+}
+
+function toggleLive() {
+  if (liveTimer) return stopLive();
+  // Chained on load rather than on a fixed interval: the device answers when
+  // it can, and piling requests onto a single-threaded server helps nobody.
+  q('live').textContent = 'Stop live';
+  liveTimer = setInterval(function () {
+    if (q('shot').complete) capture();
+  }, 400);
+}
+
+q('shot').addEventListener('error', function () {
+  q('shotNote').textContent = 'Capture failed: the device had no buffer to spare.';
+});
+
+// A download needs its own fresh frame, not the one already on screen.
+q('shotSave').addEventListener('click', function () {
+  this.href = '/api/frame?t=' + Date.now();
+});
 
 // The slider fires input continuously while dragging. The device polls its
 // single-threaded web server from the render loop, so only commit on release.

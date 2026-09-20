@@ -13,6 +13,7 @@
 <nav class=tabs role=tablist>
   <button id=tab-c role=tab aria-controls=panel-c aria-selected=true onclick="show('c')">Controls</button>
   <button id=tab-p role=tab aria-controls=panel-p aria-selected=false onclick="show('p')">Packages</button>
+  <button id=tab-s role=tab aria-controls=panel-s aria-selected=false onclick="show('s')">Screen</button>
 </nav>
 
 <div id=panel-c role=tabpanel aria-labelledby=tab-c>
@@ -87,6 +88,27 @@
     <button class=wide onclick=uploadPackage()>Upload</button>
     <p id=uploadNote class=note>Letters, numbers, underscore, hyphen.
       1 MiB per file, 3 MiB per package.</p>
+  </section>
+
+</div>
+
+<div id=panel-s role=tabpanel aria-labelledby=tab-s hidden>
+
+  <section>
+    <h2>Screen</h2>
+    <div class=grid>
+      <button onclick=capture()>Capture</button>
+      <button id=live onclick=toggleLive()>Start live</button>
+    </div>
+    <img id=shot class=shot alt="Screenshot of the device display" width=320 height=240>
+    <p id=shotNote class=note>The device draws one extra frame into a buffer and
+      sends it back. The status icons and the touch controls are painted
+      straight to the panel, so they are not in the picture.</p>
+  </section>
+
+  <section>
+    <h2>Save</h2>
+    <a id=shotSave class=wide href="/api/frame" download="monster-eyes.bmp">Download a fresh capture</a>
   </section>
 
 </div>

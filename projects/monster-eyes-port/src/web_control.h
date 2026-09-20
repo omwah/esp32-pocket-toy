@@ -54,5 +54,6 @@ private:
     void handleProvision();
     void handleSerial();
     void handleUploadData();
+    void handleFrame();
     String statusJson() const;
 };

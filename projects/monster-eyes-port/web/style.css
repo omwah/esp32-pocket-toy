@@ -141,3 +141,25 @@ nav.tabs button[aria-selected=true] { background: var(--accent); border-color: v
   .pkg { grid-template-columns: auto minmax(0, 1fr) }
   .pkg .acts { grid-column: 1 / -1; justify-content: flex-start }
 }
+
+/* The screenshot arrives at the panel's own 320x240 and is scaled up to the
+   width of the card, so keep the pixels crisp rather than smeared. */
+.shot {
+  width: 100%;
+  height: auto;
+  margin-top: .7rem;
+  border: 1px solid var(--line);
+  border-radius: .5rem;
+  background: #000;
+  image-rendering: pixelated;
+}
+a.wide {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  border-radius: .5rem;
+  border: 1px solid var(--line);
+  color: #fff;
+  text-decoration: none;
+}

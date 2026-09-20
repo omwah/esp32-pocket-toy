@@ -145,6 +145,7 @@ void WebControl::startServer() {
             _server.arg("enabled") == "true" || _server.arg("enabled") == "1");
         _server.send(ok ? 204 : 409);
     });
+    _server.on("/api/frame", HTTP_GET, [this] { handleFrame(); });
     _server.on("/api/packages/order", HTTP_POST, [this] {
         bool ok = _server.hasArg("order") &&
                   _eyes.setPackageOrder(_server.arg("order"));
@@ -313,6 +314,72 @@ void WebControl::handleUploadData() {
         _storage.cancel();
         _uploadError = "upload aborted";
     }
+}
+
+// GET /api/frame -- a screenshot of the panel as a 24-bit BMP.
+//
+// The panel cannot be read back, so the renderer draws one more frame with the
+// backend's mirror armed and the mirror is what gets served. Only the two eye
+// squares and the background colour are in it: the Wi-Fi and sound icons and
+// the touch controls are drawn straight to the TFT by the sketch and never
+// pass through the backend.
+//
+// BMP rather than PNG because it needs no compressor: the rows go out as they
+// are converted, so nothing but one row is ever held in memory.
+void WebControl::handleFrame() {
+    const uint16_t *px = _eyes.captureFrame();
+    if (!px) {
+        _server.send(503, "text/plain", "no capture buffer");
+        return;
+    }
+    const int w = CompositeTftDisplay::PANEL_W;
+    const int h = CompositeTftDisplay::PANEL_H;
+    const uint32_t rowBytes = uint32_t(w) * 3;  // 960: already 4-byte aligned
+    const uint32_t body = rowBytes * h, total = 54 + body;
+
+    uint8_t head[54] = {0};
+    auto put32 = [&head](int at, uint32_t v) {
+        head[at] = v;
+        head[at + 1] = v >> 8;
+        head[at + 2] = v >> 16;
+        head[at + 3] = v >> 24;
+    };
+    head[0] = 'B';
+    head[1] = 'M';
+    put32(2, total);
+    put32(10, 54);
+    put32(14, 40);
+    put32(18, uint32_t(w));
+    put32(22, uint32_t(h));
+    head[26] = 1;               // planes
+    head[28] = 24;              // bits per pixel
+    put32(34, body);
+    put32(38, 2835);            // 72 dpi, in pixels per metre
+    put32(42, 2835);
+
+    uint8_t *row = (uint8_t *)malloc(rowBytes);
+    if (!row) {
+        _server.send(503, "text/plain", "out of memory");
+        return;
+    }
+    _server.setContentLength(total);
+    _server.send(200, "image/bmp", "");
+    _server.sendContent((const char *)head, sizeof(head));
+    // BMP rows run bottom-up, and each pixel is stored blue first.
+    for (int y = h - 1; y >= 0; --y) {
+        const uint16_t *src = &px[size_t(y) * w];
+        for (int x = 0; x < w; ++x) {
+            const uint16_t v = src[x];
+            const uint8_t r = (v >> 11) & 0x1F, g = (v >> 5) & 0x3F, b = v & 0x1F;
+            // Replicate the high bits into the low ones so full-scale values
+            // land on 255 rather than 248.
+            row[x * 3] = uint8_t((b << 3) | (b >> 2));
+            row[x * 3 + 1] = uint8_t((g << 2) | (g >> 4));
+            row[x * 3 + 2] = uint8_t((r << 3) | (r >> 2));
+        }
+        _server.sendContent((const char *)row, rowBytes);
+    }
+    free(row);
 }
 
 void WebControl::handleSerial() {
