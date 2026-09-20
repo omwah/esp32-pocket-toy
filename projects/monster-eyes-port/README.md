@@ -161,6 +161,41 @@ Their closed edges are arcs rather than straight lines, because the renderer
 interpolates lid shape between open and closed on every frame and a flat lid
 closes like a shutter.
 
+## The Eye of Sauron package
+
+`data/eyes/sauron` is an original package rather than a migrated style. Its
+artwork is generated too:
+
+```sh
+python projects/monster-eyes-port/tools/make_sauron_eye.py
+```
+
+The flames are drawn straight into the renderer's polar texture space, where
+the horizontal axis is the angle around the eye and the vertical axis is the
+distance in from the rim. Every term in the generator is a function of the
+angle alone scaled by a function of the distance alone, so a tongue of flame
+arrives on the screen pointing straight out from the pupil: nothing leans,
+curls or spirals. `irisSpin` and `scleraSpin` are both zero, so the fire never
+turns around the iris either -- it only reaches outward. The one movement it
+has comes from the pupil: dilating it rescales the iris texture radially, and
+the narrow `pupilMin`/`pupilMax` range makes that read as the fire surging in
+and out.
+
+Layout and palette were measured off the reference footage ring by ring and
+sector by sector around the pupil: a white-hot collar on the pupil edge, the
+fire at its hottest a little way out from it and spent by the rim, and the
+flames to the left and right of the pupil burning far cooler than those above
+and below it -- deep blood red against yellow-white. That cool wedge belongs
+to the inner half of the fire in the footage, so the generator eases it off
+again towards the tips, where the sideways flames are the ones that throw the
+furthest. The sclera is a dim ember dying before the eyeball's rim, and
+`backColor` is black, so the eye reads as fire floating in the dark.
+
+The package carries no eyelid bitmaps at all. A missing lid loads as "fully
+out of the way" for both its open and its closed position, so the blink timer
+still runs but moves nothing: the Eye does not blink and no lid ever crosses
+the fire.
+
 ## Migration validation
 
 `validation/migrated-styles.json` records the accepted result and intentional
