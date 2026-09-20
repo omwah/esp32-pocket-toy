@@ -90,25 +90,6 @@ static Adafruit_SPIFlash flash(&flashTransport); ///< Flash chip driver
 static FatVolume fatfs;        ///< FAT volume holding config.eye and bitmaps
 static bool fsMounted = false; ///< Is the volume currently readable?
 
-#if defined(ARDUINO_ARCH_ESP32)
-class OffsetFlashDevice : public FsBlockDevice {
-public:
-  OffsetFlashDevice(Adafruit_SPIFlash &flash, Sector_t offset)
-      : _flash(flash), _offset(offset) {}
-  bool isBusy() override { return _flash.isBusy(); }
-  bool readSector(Sector_t s, uint8_t *p) override { return _flash.readSector(s + _offset, p); }
-  bool readSectors(Sector_t s, uint8_t *p, size_t n) override { return _flash.readSectors(s + _offset, p, n); }
-  Sector_t sectorCount() override { return _flash.sectorCount() - _offset; }
-  bool syncDevice() override { return _flash.syncDevice(); }
-  bool writeSector(Sector_t s, const uint8_t *p) override { return _flash.writeSector(s + _offset, p); }
-  bool writeSectors(Sector_t s, const uint8_t *p, size_t n) override { return _flash.writeSectors(s + _offset, p, n); }
-private:
-  Adafruit_SPIFlash &_flash;
-  Sector_t _offset;
-};
-static OffsetFlashDevice fatFlash(flash, 8);
-#endif
-
 // ===========================================================================
 //  1. BMP LOADING
 // ===========================================================================
@@ -432,13 +413,7 @@ bool Adafruit_Monster_Eyes::storageBegin(void) {
   EYES_DBG("Flash JEDEC ID 0x%06lX, %lu bytes\n",
            (unsigned long)flash.getJEDECID(), (unsigned long)flash.size());
 
-#if defined(ARDUINO_ARCH_ESP32)
-  // PlatformIO uploadfs places the FAT volume after an eight-sector
-  // wear-level header. Present that volume as sector zero to SdFat.
-  if (!fatfs.begin(&fatFlash)) {
-#else
   if (!fatfs.begin(&flash)) {
-#endif
     EYES_ERR("No FAT filesystem found on the flash partition.\n");
     EYES_ERR("Either load CircuitPython once to create CIRCUITPY, or hold the "
              "button at reset and let the host format the drive.\n");
@@ -550,6 +525,16 @@ static int32_t dwim(JsonVariantConst v, int32_t def = 0) {
   return def;
 }
 
+// Upstream copies the asset name from config.eye verbatim, which works there
+// because config.eye sits at the root of the CIRCUITPY drive and names like
+// "hazel/iris.bmp" are already relative to it. Here each package lives in its
+// own directory, /eyes/<id>/config.eye, so a relative name has to be resolved
+// against that directory.
+//
+// Deliberately not guarded to ESP32. With a config file at the drive root the
+// result is "/hazel/iris.bmp" where upstream produces "hazel/iris.bmp", and
+// both open the same file, so this stays correct on the layout upstream
+// expects rather than being an ESP32 special case.
 static void copyAssetPath(char *dst, JsonVariantConst v, const char *configFile) {
   dst[0] = 0;
   if (!v.is<const char *>()) return;
