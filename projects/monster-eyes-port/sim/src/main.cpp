@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include <sys/stat.h>
 
 #include <algorithm>
@@ -80,6 +81,9 @@ struct Options {
   std::string gifPath;            ///< --gif destination, empty for none
   int gifSearch = 900;            ///< Frames to search for a loop
   float gifSeconds = 6.0f;        ///< Longest loop to accept, in seconds
+  int gazeReturn = 0;             ///< Frames spent bringing the gaze home
+  int gazeTour = 0;               ///< Frames per circuit of a looping gaze
+  float gazeTourRadius = 0.7f;    ///< How far out the tour goes, 0..1
   int gifScale = 2;               ///< Whole-pixel magnification for the GIF
   bool pupilFixed = false;        ///< Hold the pupil at pupilValue
   float pupilValue = 0.5f;        ///< Held dilation, 0 tight to 1 wide
@@ -422,6 +426,18 @@ void usage(const char *argv0) {
       "                   used, since a whole minute of eye is a large file\n"
       "                   (default: 6)\n"
       "  --gif-scale N    Magnify the GIF by whole pixels (default: 2)\n"
+      "  --gaze-return N  Let the gaze wander as it normally does, then bring\n"
+      "                   it home over the last N frames so the loop closes.\n"
+      "                   This is how to show the eye's own glances: they land\n"
+      "                   on random spots and never repeat, so a loop can only\n"
+      "                   close if the gaze is walked back. Try 20\n"
+      "  --gaze-tour N    Walk the gaze round a circle every N frames instead\n"
+      "                   of letting it wander. The autonomous gaze lands on\n"
+      "                   random positions and never returns to one exactly,\n"
+      "                   so a loop can never span a glance; a circuit repeats,\n"
+      "                   which lets one contain the eye actually moving\n"
+      "  --gaze-tour-radius N  How far the tour reaches, 0 to 1 (default: 0.7)\n"
+
       "\n"
       "Capture:\n"
       "  --frames N       Render N frames headless and exit\n"
@@ -523,6 +539,14 @@ bool parseArgs(int argc, char **argv, Options &opt, bool &list) {
       opt.gifSearch = atoi(value());
     } else if (!strcmp(a, "--gif-seconds")) {
       opt.gifSeconds = (float)atof(value());
+    } else if (!strcmp(a, "--gaze-return")) {
+      opt.gazeReturn = atoi(value());
+    } else if (!strcmp(a, "--gaze-tour")) {
+      opt.gazeTour = atoi(value());
+      opt.autoGaze = false;
+      opt.autoGazeSet = true;
+    } else if (!strcmp(a, "--gaze-tour-radius")) {
+      opt.gazeTourRadius = (float)atof(value());
     } else if (!strcmp(a, "--gif-scale")) {
       opt.gifScale = atoi(value());
     } else if (!strcmp(a, "--pupil")) {
@@ -646,8 +670,33 @@ int captureSequence(EyeHost &host, LinuxDisplay &display, const Options &opt,
  * @param eyeName Package name, for the message.
  * @return true if a loop was found and written.
  */
+/**
+ * @brief Build a loop that closes by walking the gaze back where it started.
+ *
+ * The wandering gaze picks random positions and never returns to one it has
+ * held, so a loop can never contain a glance -- searching only ever finds a
+ * stretch where the eye is still. Here the eye is left to wander and then led
+ * home over the last few frames, which is a thing eyes do anyway.
+ *
+ * For the ends to match, everything else has to line up as well: the length is
+ * a whole number of whatever period the eye has when it is still (its iris
+ * flow, usually), and the pupil is held, its dilation being a random walk that
+ * would otherwise never repeat.
+ *
+ * @param host    Live renderer.
+ * @param display Backend holding the pixels.
+ * @param opt     Settings.
+ * @param eyeName Package name, for the message.
+ * @return true if a loop was found and written.
+ */
+bool writeGazeReturnGif(EyeHost &host, LinuxDisplay &display,
+                        const Options &opt, const char *eyeName);
+
 bool writeLoopingGif(EyeHost &host, LinuxDisplay &display, const Options &opt,
                      const char *eyeName) {
+  if (opt.gazeReturn > 0)
+    return writeGazeReturnGif(host, display, opt, eyeName);
+
   Adafruit_Monster_Eyes *eyes = host.eyes();
   if (!eyes)
     return false;
@@ -683,11 +732,24 @@ bool writeLoopingGif(EyeHost &host, LinuxDisplay &display, const Options &opt,
   // Every frame's hash, and every span that repeats. Selection happens
   // afterwards rather than online, because whether a span is worth using
   // depends on what is inside it, not just how long it is.
+  // A gaze that goes round a circle comes back to where it started, which the
+  // wandering one never does. The search then finds a loop the ordinary way,
+  // and that loop has the eye moving in it.
+  auto driveTour = [&](int frame) {
+    if (opt.gazeTour <= 0)
+      return;
+    const float t = (float)(frame % opt.gazeTour) / (float)opt.gazeTour;
+    const float angle = t * 6.28318530718f;
+    setScreenGaze(*host.eyes(), opt.gazeTourRadius * cosf(angle),
+                  opt.gazeTourRadius * sinf(angle));
+  };
+
   std::map<uint64_t, int> firstSeen;
   std::vector<uint64_t> hashes;
   std::vector<std::pair<int, int>> candidates; // start, span
   hashes.reserve((size_t)opt.gifSearch);
   for (int i = 0; i < opt.gifSearch; ++i) {
+    driveTour(i);
     eyes->animate();
     const uint64_t h = hashFrame();
     hashes.push_back(h);
@@ -698,6 +760,7 @@ bool writeLoopingGif(EyeHost &host, LinuxDisplay &display, const Options &opt,
       firstSeen[h] = i;
     hostClockAdvance(stepUs);
   }
+
 
   // A span whose frames are all the same is a real loop and a useless one: a
   // still eye repeats every single frame. Require something to actually happen
@@ -736,7 +799,13 @@ bool writeLoopingGif(EyeHost &host, LinuxDisplay &display, const Options &opt,
   if (loopStart < 0) {
     fprintf(stderr,
             "No repeat within %d frames, so there is no seamless loop to "
-            "write. Try --gif-search with a larger number.\n",
+            "write.\n"
+            "A continuously turning texture is the usual reason: irisSpin "
+            "and scleraSpin rarely land on an angle they have held before, and "
+            "two eyes turning at different speeds almost never do together.\n"
+            "Spin is often set per eye, so it takes all three to stop it:\n"
+            "  --set irisSpin=0 --set left.irisSpin=0 --set right.irisSpin=0\n"
+            "Otherwise try a larger --gif-search.\n",
             opt.gifSearch);
     return false;
   }
@@ -757,6 +826,7 @@ bool writeLoopingGif(EyeHost &host, LinuxDisplay &display, const Options &opt,
   const size_t pixelCount = (size_t)LinuxDisplay::PANEL_W *
                             LinuxDisplay::PANEL_H;
   for (int i = 0; i < loopStart + loopLength; ++i) {
+    driveTour(i);
     eyes->animate();
     if (i >= loopStart)
       loop.push_back(std::vector<uint16_t>(
@@ -781,6 +851,164 @@ bool writeLoopingGif(EyeHost &host, LinuxDisplay &display, const Options &opt,
   printf("%s: %s, %d frames at %d fps, %.1fs, loops exactly\n",
          opt.gifPath.c_str(), eyeName, loopLength, opt.fps,
          (float)loopLength / (float)opt.fps);
+  return true;
+}
+
+bool writeGazeReturnGif(EyeHost &host, LinuxDisplay &display,
+                        const Options &opt, const char *eyeName) {
+  const int fps = opt.fps > 0 ? opt.fps : 30;
+  const uint32_t stepUs = (uint32_t)(1000000 / fps);
+  const size_t pixels = (size_t)LinuxDisplay::PANEL_W * LinuxDisplay::PANEL_H;
+
+  auto restart = [&](void) {
+    hostClockSet(0);
+    hostRandomForceSeed(opt.seed);
+    return host.load(host.packages(), host.index(), false, opt.autoGaze,
+                     opt.autoBlink, opt.autoGazeSet, opt.autoBlinkSet);
+  };
+  auto grab = [&](void) {
+    return std::vector<uint16_t>(display.framebuffer(),
+                                 display.framebuffer() + pixels);
+  };
+
+  // Which lengths can possibly close? Everything else about the loop is under
+  // this function's control -- the gaze is led home, the pupil is pinned, the
+  // blink is off -- except what the clock drives: the iris flow, and any spin.
+  // Those depend on absolute time, and the flow's phase is a truncated
+  // multiply, so it does NOT come back round on a tidy period. The honest way
+  // to find the lengths that work is to run a still eye and note every frame
+  // that matches its first.
+  if (!restart())
+    return false;
+  host.eyes()->setAutoGaze(false);
+  host.eyes()->setAutoBlink(false);
+  setScreenGaze(*host.eyes(), 0.0f, 0.0f);
+  host.eyes()->setPupil(0.5f);
+  // A pair of frames that match, at any point: the loop can begin wherever the
+  // clock-driven part happens to come round, not only at the very first frame.
+  std::map<std::vector<uint16_t>, int> seen;
+  int start = -1, length = 0;
+  const int wanted = (int)(opt.gifSeconds * fps);
+  for (int i = 0; i < opt.gifSearch; ++i) {
+    host.eyes()->setPupil(0.5f);
+    host.eyes()->animate();
+    auto frame = grab();
+    const auto at = seen.find(frame);
+    if (at != seen.end()) {
+      const int span = i - at->second;
+      // Long enough that the eye wanders for a while before being led back;
+      // a loop barely longer than the walk home is all walk home.
+      const int least = opt.gazeReturn * 2;
+      if (span >= least && span <= wanted && span > length) {
+        start = at->second;
+        length = span;
+      }
+    } else {
+      seen[std::move(frame)] = i;
+    }
+    hostClockAdvance(stepUs);
+  }
+  if (start < 0) {
+    fprintf(stderr,
+            "Nothing about this eye comes back round between %d and %d frames, "
+            "so a loop cannot be closed however the gaze is led. Raising "
+            "--gif-seconds usually finds one: what has to line up is the iris "
+            "flow, and its phase does not return on a tidy period.\n",
+            opt.gazeReturn * 2, wanted);
+    return false;
+  }
+  const int returnFrames = std::min(opt.gazeReturn, length - 1);
+
+  // Render the loop in three parts, so that both ends are the same settled
+  // eye and only the middle wanders:
+  //
+  //   up to `start`   gaze pinned where the still pass had it, so the frame
+  //                   the loop begins on is the one the search matched
+  //   the middle      the gaze let go, wandering as it normally does
+  //   the last part   led back and held there, long enough for the eyelids to
+  //                   stop moving -- they follow the gaze through a filter,
+  //                   so arriving is not the same as having arrived
+  //
+  // Pinning the ends to the same place the still pass used is what makes the
+  // match mean anything: the search only ever proved the clock-driven part
+  // comes round, and everything else has to be put back by hand.
+  if (!restart())
+    return false;
+  Adafruit_Monster_Eyes *eyes = host.eyes();
+  eyes->setAutoBlink(false);
+  for (int i = 0; i < start; ++i) {
+    setScreenGaze(*eyes, 0.0f, 0.0f);
+    eyes->setPupil(0.5f);
+    eyes->animate();
+    hostClockAdvance(stepUs);
+  }
+
+  // Where the centre is, in the renderer's own coordinates.
+  setScreenGaze(*eyes, 0.0f, 0.0f);
+  const float homeMapX = eyes->gazeMapX(), homeMapY = eyes->gazeMapY();
+  float fromX = homeMapX, fromY = homeMapY;
+
+  std::vector<std::vector<uint16_t>> loop;
+  const int glide = returnFrames / 3;
+  for (int i = 0; i <= length; ++i) {
+    const int intoReturn = i - (length - returnFrames);
+    if (i == 0) {
+      setScreenGaze(*eyes, 0.0f, 0.0f);
+    } else if (intoReturn == 1) {
+      fromX = eyes->gazeMapX();
+      fromY = eyes->gazeMapY();
+      eyes->setAutoBlink(false);
+    } else if (i == 1) {
+      // Let go, and let the eye do what it does.
+      eyes->releaseGaze();
+      eyes->setAutoBlink(opt.autoBlink);
+    }
+    if (intoReturn >= 1) {
+      if (intoReturn >= glide) {
+        setScreenGaze(*eyes, 0.0f, 0.0f);
+      } else {
+        const float t = (float)intoReturn / (float)glide;
+        const float e = t * t * (3.0f - 2.0f * t);
+        eyes->setGazeMap(fromX + (homeMapX - fromX) * e,
+                         fromY + (homeMapY - fromY) * e);
+      }
+    }
+    eyes->setPupil(0.5f);
+    eyes->animate();
+    if (i < length) {
+      loop.push_back(grab());
+    } else {
+      const std::vector<uint16_t> last = grab();
+      if (last != loop.front()) {
+        size_t differing = 0;
+        for (size_t p = 0; p < last.size(); ++p)
+          if (last[p] != loop.front()[p])
+            ++differing;
+        fprintf(stderr,
+                "The gaze came home but the ends still differ in %zu of %zu "
+                "pixels, so this would not loop cleanly. A longer "
+                "--gaze-return, or a different --gif-seconds, usually fixes "
+                "it.\n",
+                differing, last.size());
+        return false;
+      }
+    }
+    hostClockAdvance(stepUs);
+  }
+
+  GifWriter gif(LinuxDisplay::PANEL_W, LinuxDisplay::PANEL_H, opt.gifScale);
+  for (const auto &frame : loop)
+    gif.addFrame(frame.data());
+  std::string error;
+  if (!gif.write(opt.gifPath, 1000 / fps, &error)) {
+    fprintf(stderr, "Could not write %s: %s\n", opt.gifPath.c_str(),
+            error.c_str());
+    return false;
+  }
+  printf("%s: %s, %d frames at %d fps, %.1fs, loops exactly, gaze walked home "
+         "over the last %d\n",
+         opt.gifPath.c_str(), eyeName, (int)loop.size(), fps,
+         (float)loop.size() / (float)fps, returnFrames);
   return true;
 }
 

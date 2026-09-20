@@ -264,6 +264,15 @@ the step the animation would have taken anyway.
 | `--gif-seconds N` | Longest loop to accept, default 6. The longest that fits wins; a GIF is a fat format and half a minute of eye runs to tens of megabytes |
 | `--gif-search N` | Frames to look through for the repeat, default 900 |
 | `--gif-scale N` | Whole-pixel magnification, default 2 |
+| `--gaze-return N` | Let the gaze wander as usual, then lead it home over the last N frames so the loop closes |
+| `--gaze-tour N` | Walk the gaze round a circle every N frames instead of letting it wander |
+| `--gaze-tour-radius N` | How far the tour reaches, 0 to 1, default 0.7 |
+
+Frames carry only what changed since the one before, inside the smallest
+rectangle that holds it, with the rest transparent so the previous pixels show
+through. An eye is a small moving thing on a large still background, so most of
+the picture is sent once rather than thirty times a second — between a third and
+seven eighths off, depending on how much of the frame moves.
 
 `--fps` sets the frame rate as usual. The encoder is written into the simulator
 rather than shelled out to ffmpeg, so a GIF needs no second toolchain
@@ -275,6 +284,50 @@ and it made an early version of this shimmer at the join.
 
 Different packages settle into different loops: an eye with no lids and no
 tracking repeats in under a second, while one that blinks needs a few.
+
+### Why a loop rarely contains a glance
+
+The autonomous gaze picks random positions, so it never returns to precisely
+one it has held. An exact repeat can therefore only ever sit inside a stretch
+where the eye is still — which is why sauron, whose only other motion is the
+iris flow, loops in 23 frames with the eye locked forward, and why raising
+`--gif-seconds` does not help: there is no longer repeat to find, at any seed.
+
+**`--gaze-return N` keeps the eye's own glances.** The gaze is left to wander
+and then led back where it started over the last N frames, which is a thing eyes
+do anyway:
+
+```sh
+./sim/build/eye-sim --eye sauron --gaze-return 30 --gif-seconds 10 \
+    --gif /tmp/sauron.gif
+```
+
+Both ends have to be the same settled eye, so the loop is pinned to the centre
+at its start and led back to the centre at its end, with the middle left alone.
+The length is not free either: it has to be one where the clock-driven part --
+the iris flow -- comes round, and that is found by running a still eye and
+noting which frames repeat, rather than assumed to be a tidy period, because it
+is not. Raise `--gif-seconds` if it reports that nothing lines up.
+
+Two details it has to handle, both of which showed up as a dozen stubborn
+pixels along the eyelid: the lids follow the gaze through a filter, so the eye
+holds still for the last two thirds of the return while they settle; and the
+pupil's dilation is a random walk, so it is pinned for the length of the loop.
+
+`--gaze-tour N` instead walks the gaze round a circle every N frames, which
+gives a shorter file and a tidier motion at the cost of the eye's own
+behaviour. A circuit repeats, so the ordinary search finds the loop:
+
+```sh
+./sim/build/eye-sim --eye sauron --set irisFlowSpeed=1.0 \
+    --gaze-tour 60 --gif-seconds 2 --gif /tmp/sauron.gif
+```
+
+The loop is as long as it takes the tour and the iris flow to line up, so it
+pays to make the flow period a round number. Sauron's default `irisFlowSpeed` of
+1.3 gives a 769 ms cycle, which only meets a 2-second tour after ten seconds and
+twenty-three megabytes; setting the speed to 1.0 makes both a whole number of
+seconds and the loop comes out at two.
 
 ## Capturing frames for an agent
 
