@@ -53,12 +53,18 @@ function renderStatus() {
   var audio = s.audioPresent
     ? (s.hasSound ? (s.muted ? 'Muted' : 'On, ' + s.volume + '%') : 'Package has no sound')
     : 'No codec';
+  // Connected, the network's name is the useful part: a page being read over
+  // that network hardly needs telling it is connected. Otherwise the state is
+  // the news, and the name says what it is waiting on.
+  var wifi = s.wifi === 'connected' ? (s.ssid || 'connected')
+           : s.ssid ? s.wifi + ' to ' + s.ssid
+           : s.wifi;
   q('status').innerHTML =
     '<b>Style</b><span>' + h(s.styleName) + '</span>' +
     '<b>Mode</b><span>' + h(s.mode) + '</span>' +
     '<b>Battery</b><span>' + battery + '</span>' +
     '<b>Power</b><span>' + power + '</span>' +
-    '<b>Wi-Fi</b><span>' + h(s.wifi) + ' ' + h(s.ip || '') + '</span>' +
+    '<b>Wi-Fi</b><span>' + h(wifi) + ' ' + h(s.ip || '') + '</span>' +
     '<b>Audio</b><span>' + audio + '</span>';
 }
 

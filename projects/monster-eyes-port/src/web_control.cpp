@@ -269,6 +269,12 @@ String WebControl::statusJson() const {
         ",\"interval\":" + String(_interval / 1000) + ",\"wifi\":\"" +
         (connected() ? "connected"
                      : (_provisioning ? "provisioning" : "connecting")) +
+        // Which network, since "connected" tells a page that has already
+        // loaded over that network nothing it does not know. While
+        // provisioning it is the setup access point the phone is looking for;
+        // while connecting it is what the board is reaching for.
+        "\",\"ssid\":\"" +
+        esc(_provisioning ? _apName.c_str() : WiFi.SSID().c_str()) +
         "\",\"ip\":\"" +
         (connected() ? WiFi.localIP().toString() : WiFi.softAPIP().toString()) +
         "\",\"configured\":" + (_configured ? "true" : "false") +
