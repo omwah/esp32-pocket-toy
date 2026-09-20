@@ -266,6 +266,23 @@ What it captures is the two eyes and the background they sit on. The status
 icons and the touch controls are drawn straight to the TFT by the sketch, so
 they never pass through the backend and are not in the picture.
 
+## Linux preview
+
+`sim/` builds `eye-sim`, a desktop preview that runs this renderer against a
+simulated 320x240 panel. The library sources are compiled from `lib/`
+unmodified against a small Arduino shim, so what it shows is what the device
+would draw; only the display backend is different. It also captures frame
+sequences as PNGs with JSON state sidecars, for analysis without hardware.
+
+```sh
+cmake -B projects/monster-eyes-port/sim/build projects/monster-eyes-port/sim
+cmake --build projects/monster-eyes-port/sim/build -j
+cd projects/monster-eyes-port && ./sim/build/eye-sim --eye deer
+```
+
+Needs `cmake`, `g++`, `zlib1g-dev` and, for the window, `libsdl3-dev`. See
+`sim/README.md` for the keys, the capture options and what the shim covers.
+
 ## Migration validation
 
 `validation/migrated-styles.json` records the accepted result and intentional

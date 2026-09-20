@@ -1,0 +1,240 @@
+# Linux preview
+
+`eye-sim` runs the eye renderer on a desktop, against a simulated 320x240
+panel, so a texture, a colour or a config value can be tried in a second rather
+than a flash cycle.
+
+It is a preview, not a reimplementation. `Adafruit_Monster_Eyes.cpp`,
+`Eyes_Assets.cpp` and `Eyes_Display.cpp` are compiled from `../lib` unmodified,
+they parse the same `config.eye` with the same ArduinoJson, and they read the
+same BMPs out of `../data`. What this directory adds is a display backend that
+writes to memory instead of a panel, and a shim providing the handful of
+Arduino core calls the library makes. Nothing under `../lib` or `../src` is
+touched and the PlatformIO build is unaffected.
+
+The panel geometry is copied from `src/composite_tft_display.h`: a 320x240
+panel, two 128x128 eyes, left at x=18 and right at x=174, both at y=56. A pixel
+on screen here is the pixel the device would light.
+
+## Dependencies
+
+| What | Package on Ubuntu/Debian | Why |
+|---|---|---|
+| CMake 3.16+ | `cmake` | Build system |
+| A C++17 compiler | `g++` | Tested with GCC 15 |
+| zlib | `zlib1g-dev` | Deflating the capture PNGs |
+| SDL3 | `libsdl3-dev` | The preview window; optional |
+| ArduinoJson 7.x | fetched by PlatformIO | Parsing `config.eye` |
+
+```sh
+sudo apt install cmake g++ zlib1g-dev libsdl3-dev
+```
+
+SDL3 is optional. Without it the build still succeeds and headless capture
+still works; only the window is missing, and CMake says so rather than failing.
+libpng is deliberately not a dependency: the PNG writer in `src/capture.cpp`
+emits the format directly through zlib, which everything already has.
+
+ArduinoJson is header-only and builds natively, so the simulator parses
+`config.eye` with the real parser rather than a lookalike. CMake finds the copy
+PlatformIO fetched under `../.pio/libdeps/*/ArduinoJson/src`. If the firmware
+has never been built, either run `pio pkg install -d ..` first or point CMake at
+a copy with `-DARDUINOJSON_DIR=/path/to/ArduinoJson/src`.
+
+## Building
+
+```sh
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+```
+
+## Running
+
+Paths are relative to `projects/monster-eyes-port`, since `--assets` defaults to
+`data`:
+
+```sh
+./sim/build/eye-sim --list             # Eye packages found
+./sim/build/eye-sim --eye deer         # Open the preview window
+./sim/build/eye-sim --eye deer --scale 4
+```
+
+### Keys
+
+| Key | Action |
+|---|---|
+| arrows | Steer the gaze, in the direction the key points |
+| `m` | Toggle mouse-driven gaze; the pupil follows the pointer |
+| space | Blink |
+| `g` / `b` | Toggle the gaze and blink animators |
+| `[` / `]` | Previous / next eye package |
+| `r` | Reload `config.eye` from disk |
+| `c` | Capture 8 frames to `eye-capture-*` |
+| tab | Toggle the status overlay |
+| `?` | Show the key list over the eye |
+| `q`, escape | Quit |
+
+`?` (or `/`, since which one SDL reports depends on the layout) dims the eye and
+lists the keys over it; `?` or escape dismisses it. The list and `--help` are
+generated from the same table in `src/main.cpp`, so they cannot drift apart.
+
+`r` rebuilds the renderer rather than patching it: the polar maps, the eye size
+and the texture budget are all derived from the config being reread, so there is
+no honest way to change one in place. Edit `data/eyes/<id>/config.eye`, press
+`r`, and the result is on screen.
+
+## Capturing frames for an agent
+
+```sh
+./sim/build/eye-sim --eye deer --frames 30 --out /tmp/deer
+```
+
+That writes `/tmp/deer-000.png` through `/tmp/deer-029.png` at the panel's own
+320x240 regardless of `--scale`, a `/tmp/deer-NNN.json` beside each one, and
+`/tmp/deer.json` listing the whole sequence. No window is opened, so it works
+over SSH and in CI.
+
+The sidecar says what the animator was doing at the instant the pixels were
+drawn, which is usually the faster question to answer:
+
+```json
+{
+  "frame": 2,
+  "timeUs": 66666,
+  "eye": "deer",
+  "eyeSize": 128,
+  "gaze": {"x": 0.0905, "y": -0.0247},
+  "gazeMap": {"x": 129.456, "y": 125.058},
+  "blinkPhase": 1.0000,
+  "irisFraction": 0.9196,
+  "pupil": 0.5069,
+  "renderMs": 0.000,
+  "transferMs": 0.000,
+  "wallMs": 0.083,
+  "frameRate": 30.00,
+  "autoGaze": true,
+  "autoBlink": true
+}
+```
+
+`blinkPhase` is 0 open and 1 fully shut. `renderMs` and `transferMs` are the
+library's own figures and are not useful here: the library measures them with
+`micros()`, which under the virtual clock only moves between frames, and a
+memory backend has no bus to push pixels down. `wallMs` is the real one — host
+time actually spent on that frame, which is what answers whether a change made
+the renderer slower.
+
+### Which way the eye looks
+
+The simulator talks in screen space throughout: `+X` is right and `+Y` is up as
+you see it. The arrows point where they are drawn, the pupil follows the mouse,
+and `--gaze 1,0` looks right.
+
+`Adafruit_Monster_Eyes::setGaze()` is the opposite on both axes, and
+`src/main.cpp` inverts it in one place (`setScreenGaze`). `_frameEyeX/_frameEyeY`
+are the point the renderer *samples from* in the polar map rather than where the
+pupil is drawn, so raising them slides the sampling window one way and the pupil
+the other. Measured on the cat package against a centred pupil at x=87.8,
+y=121.3:
+
+| call | pupil lands at | which is |
+|---|---|---|
+| `setGaze(+1, 0)` | x 75.9 | left |
+| `setGaze(-1, 0)` | x 98.1 | right |
+| `setGaze(0, +1)` | y 144.6 | down |
+| `setGaze(0, -1)` | y 94.9 | up |
+
+The doc comment on `setGaze()` claims the reverse (`-1.0 hard left to 1.0 hard
+right`, `-1.0 down to 1.0 up`). Nothing in the firmware calls it —
+`MonsterController::setGaze()` has no callers — so the mismatch had never been
+exercised. **If you wire up gaze control on the device, invert it there too, or
+trust the table above over the header.** The library is left unmodified.
+
+Capture sidecars record both: `gazeScreen` is what you see, `gazeLibrary` is
+what the library holds.
+
+### Frame rate
+
+`--fps` (default 30) sets the virtual clock's step and caps the window loop.
+Both matter, because **the iris animator is driven by a frame counter, not by
+the clock**: `updateIris()` walks a 128-frame fractal cycle one step per
+rendered frame, with no time term in it at all. On the device that cycle takes
+several seconds, because the SPI panel is the bottleneck. Drawing into memory
+there is no bottleneck, so an uncapped host loop free-runs into the thousands of
+frames per second and the same cycle finishes in milliseconds — the pupils
+visibly pulsate.
+
+So the window is paced. The gaze and blink animators are driven by `micros()`
+and would not care, but the iris is only meaningful at roughly the rate the
+hardware achieves. Raise `--fps` to see the eye move faster; `--fps 0` uncaps the
+window for profiling, and pulsating pupils are the expected result. Captures are
+always stepped, falling back to 30 when the window is uncapped, because there is
+no reproducible sequence without a fixed step.
+
+### Reproducibility
+
+Captures are deterministic. `millis()` and `micros()` come from a virtual clock
+that advances by exactly `1/--fps` per frame, and `random()` is a xorshift
+seeded only from `--seed`, so the same command gives byte-identical PNGs on any
+machine. Two builds can be diffed frame by frame.
+
+Useful consequences:
+
+```sh
+# The same moment every time, 40 frames in
+./sim/build/eye-sim --eye deer --frames 1 --skip 40 --out /tmp/settled
+
+# A different but equally repeatable animation
+./sim/build/eye-sim --eye deer --frames 30 --seed 99 --out /tmp/other
+
+# Just geometry, with the animators out of the way
+./sim/build/eye-sim --eye deer --frames 1 --no-auto-gaze --no-auto-blink \
+    --out /tmp/static
+```
+
+The window is the exception: it runs on the host clock, so the frame rate in the
+overlay is the one really being achieved (which, being paced, should sit at
+`--fps`). Pressing `c` there switches to the
+virtual clock for the length of the capture, so frames taken from the window are
+as reproducible as frames taken from the command line.
+
+## How the shim works
+
+The simulator compiles the library with `-DARDUINO_ARCH_ESP32`, so
+`Eyes_Platform.h` and `Eyes_Assets.cpp` take the same preprocessor branches they
+take on the board. The headers those branches reach for are supplied by `shim/`:
+
+| Shim | Stands in for | Real or stub |
+|---|---|---|
+| `Arduino.h` / `.cpp` | The core: clock, random, `Print`/`Stream`, GPIO | Real |
+| `FFat.h` / `.cpp` | The FAT asset filesystem | Real, over a host directory |
+| `esp_heap_caps.h` | ESP-IDF's capability allocator | Real, over `malloc` |
+| `SdFat_Adafruit_Fork.h` | SdFat | Stub |
+| `Adafruit_SPIFlash.h` | The flash chip driver | Stub |
+| `Adafruit_TinyUSB.h` | USB mass storage | Stub |
+| `SPI.h` | The SPI bus | Empty |
+
+The last four are stubs because on ESP32 the assets come from FFat and those
+libraries are unused — but the USB drive-mode code that references them is not
+behind an `#if`, so the types have to exist. Every stub method fails, which is
+the honest answer on a host with no flash chip, and the simulator never calls
+that code.
+
+`FFat` is the one that does real work. It resolves the device's absolute paths
+(`/eyes/deer/config.eye`) against `--assets`, and refuses a path that tries to
+climb out of that root with `..`, so a hostile config cannot read arbitrary
+files.
+
+Heap figures are fiction: the shim reports 8 MB free, so the texture loader
+never decimates and the preview shows the eye at full resolution. That is
+deliberately not what the device does — with 16 MB of flash but a much smaller
+internal heap, the ESP32 may load a coarser texture than you see here. The
+preview answers "is this eye right"; the device answers "does it fit".
+
+## Limitations
+
+Only the panel is simulated. Touch, audio, the web interface, package upload and
+the status icons the sketch draws straight to the TFT are all outside the
+renderer and are not here. The status icons in particular never pass through the
+display backend, so they are absent from the preview for the same reason they
+are absent from the device's own `/api/frame` screenshots.
