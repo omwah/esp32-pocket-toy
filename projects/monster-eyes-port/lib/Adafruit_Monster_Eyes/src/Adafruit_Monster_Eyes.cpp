@@ -197,6 +197,27 @@ void Adafruit_Monster_Eyes::seedVariants(void) {
   }
 }
 
+uint32_t Adafruit_Monster_Eyes::textureBudget(void) const {
+  // Two different limits, and they are not the same number.
+  //
+  // A texture is ONE allocation, so it cannot exceed the largest free block.
+  // The reserve, meanwhile, is what the rest of the sketch needs -- Wi-Fi, a
+  // web server, TLS -- and that is a claim on TOTAL free heap, not on any one
+  // block.
+  //
+  // Measuring the reserve against the largest block instead conflates the two,
+  // and a fragmented heap then looks like a full one: after a style change
+  // this board has ~190 KB free but a largest block of ~53 KB, which with a
+  // reserve worth more than that would refuse a texture outright and shrink
+  // the eye to nothing.
+  const uint32_t largest = eyesLargestFreeBlock();
+  const uint32_t total = eyesFreeHeap();
+  if (total <= MONSTER_EYES_HEAP_RESERVE)
+    return 0;
+  const uint32_t spare = total - MONSTER_EYES_HEAP_RESERVE;
+  return (largest < spare) ? largest : spare;
+}
+
 void Adafruit_Monster_Eyes::finalizeSettings(void) {
   // 0 means "fill whatever the display can give one eye"; begin() resolves it
   // once the backend is up. Anything else is clamped to a sane range.
@@ -691,10 +712,9 @@ bool Adafruit_Monster_Eyes::begin(void) {
                _settings.displaySize);
       continue;
     }
-    const uint32_t left = eyesLargestFreeBlock();
+    const uint32_t left = textureBudget();
     if (wantTexture && (_settings.displaySize > 96) &&
-        (left < (uint32_t)(MONSTER_EYES_HEAP_RESERVE +
-                           MONSTER_EYES_MIN_TEXTURE_BUDGET))) {
+        (left < (uint32_t)MONSTER_EYES_MIN_TEXTURE_BUDGET)) {
       tablesFree();
       _settings.displaySize -= 16;
       _settings.eyeRadius = 0;
@@ -727,11 +747,7 @@ bool Adafruit_Monster_Eyes::begin(void) {
     _display->selfTest();
   _display->clear(_settings.eyelidColor);
 
-  // Whatever is left, minus a reserve, is the texture budget.
-  const uint32_t freeHeap = eyesLargestFreeBlock();
-  const uint32_t texBudget = (freeHeap > MONSTER_EYES_HEAP_RESERVE)
-                                 ? (freeHeap - MONSTER_EYES_HEAP_RESERVE)
-                                 : 0;
+  const uint32_t texBudget = textureBudget();
   EYES_DBG("[4] media\n");
   if (!mediaLoad(_settings.displaySize, texBudget)) {
     fail("eyelid table allocation failed");

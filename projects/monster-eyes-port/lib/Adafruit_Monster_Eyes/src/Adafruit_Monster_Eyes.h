@@ -675,6 +675,10 @@ private:
   bool storageBegin(void);
   void storageEnd(void);
   bool mediaLoad(int size, uint32_t texBudget);
+  /** @brief Bytes a texture may use: the smaller of the largest free block
+   *  and what is left of total free heap after the reserve.
+   *  @return Byte budget. */
+  uint32_t textureBudget(void) const;
   void applyConfigRoot(const void *variantPtr);
   void applyConfigExtensions(const void *variantPtr);
   void applyConfigVariant(const void *variantPtr, EyesVariant &v);
