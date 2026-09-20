@@ -5,12 +5,12 @@
   // by tools/make_sauron_eye.py.
   "eyeRadius": 125,
   // The fire fills the eye; the sclera is only the dying ember at its rim.
-  "irisRadius": 118,
+  "irisRadius": 124,
 
   // An upright pointed slit, as a cat's is, which is the shape the pupil
   // holds in every frame of the reference. slitPupilRadius is measured along
   // the slit, so this is half the pupil's height.
-  "slitPupilRadius": 24,
+  "slitPupilRadius": 27,
   "slitPupilHorizontal": false,
   "slitPupilRounded": false,
   // A narrow range, and a slow one: the fire breathes in and out a little
@@ -32,6 +32,15 @@
   // The flames emerge; they never go round. Both textures are nailed down.
   "irisSpin": 0.0,
   "scleraSpin": 0.0,
+
+  // The fire moves outward instead. Each pixel is sampled a little nearer or
+  // further from the pupil than it sits, on a wave travelling out from the
+  // pupil, so heat drawn at one depth in the texture appears at another and
+  // the flames lick outward. Sectors are out of step with each other, so the
+  // crests do not arrive as one ring.
+  "irisFlow": 0.16,
+  "irisFlowSpeed": 1.3,
+  "irisFlowWaves": 1.7,
 
   "irisTexture": "iris.bmp",
   "scleraTexture": "sclera.bmp",

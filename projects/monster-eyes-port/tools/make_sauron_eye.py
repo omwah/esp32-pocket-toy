@@ -84,11 +84,11 @@ SIDE_EMBER = (150, 14, 4)
 # because each has its own reach the tips end at different distances and the
 # fire has a ragged edge rather than a hem.
 FLAME_OCTAVES = [
-    (17, 0.34, 0.30, 1.00),
-    (37, 0.26, 0.26, 0.86),
-    (79, 0.20, 0.22, 0.68),
-    (157, 0.13, 0.18, 0.52),
-    (311, 0.08, 0.12, 0.38),
+    (17, 0.22, 0.36, 1.08),
+    (37, 0.26, 0.32, 0.94),
+    (79, 0.24, 0.26, 0.76),
+    (157, 0.16, 0.20, 0.58),
+    (311, 0.10, 0.14, 0.42),
 ]
 
 
@@ -141,7 +141,7 @@ def iris_texture(seed=20260919):
     body = np.zeros_like(angles)
     for cells, weight, near, far in FLAME_OCTAVES:
         reach = (near + (far - near) * angular_noise(rng, angles, cells)) * stretch
-        brightness = 0.35 + 0.65 * angular_noise(rng, angles, cells)
+        brightness = 0.55 + 0.45 * angular_noise(rng, angles, cells)
         # 1 along the length of the tongue, falling to 0 over the last
         # quarter of it, which is its tip.
         taper = 0.25 * reach
@@ -155,19 +155,19 @@ def iris_texture(seed=20260919):
     # A little way out from the collar the fire is at its hottest -- that is
     # where the footage peaks, measured ring by ring -- and it is spent by the
     # time it reaches the rim.
-    envelope = np.exp(-(((dist - 0.16) / 0.46) ** 2))
+    envelope = np.exp(-(((dist - 0.26) / 0.55) ** 2))
     # A floor under the tongues so the sheets of flame join up instead of
     # standing apart as separate spikes.
     body = body + 0.06 * smoothstep(1.05, 0.55, dist)
     # The white-hot collar that hugs the pupil in every frame of the
     # reference, with just enough angular variation not to look printed on.
     collar = (0.98 - 0.14 * angular_noise(rng, angles, 37)) * np.exp(
-        -((dist / 0.085) ** 2))
+        -((dist / 0.115) ** 2))
 
     # A haze of fire behind the tongues. Without it the gaps between them go
     # to black and the eye reads as a starburst; the footage has burning air
     # in those gaps, dimmer than the flames but never dark.
-    haze = (0.30 * envelope * (0.7 + 0.3 * angular_noise(rng, angles, 13))
+    haze = (0.36 * envelope * (0.7 + 0.3 * angular_noise(rng, angles, 13))
             * smoothstep(0.05, 0.30, dist))
 
     # Gains chosen so that only the collar and the brightest tongues reach the
@@ -175,7 +175,7 @@ def iris_texture(seed=20260919):
     # anything hotter than this floods the middle of it into a white
     # starburst: the fire has to spend most of its range in the oranges and
     # reds to read as fire at that size.
-    heat = collar + haze + 0.72 * envelope * body
+    heat = collar + haze + 0.66 * envelope * body
 
     # Licks: every ray brightens and dims along its length, at a spacing and a
     # phase of its own, so the fire has fronts in it instead of being a clean
@@ -194,7 +194,7 @@ def iris_texture(seed=20260919):
     # other. The wedge is wider and deeper than a strict reading of the
     # footage asks for, because at 128 px a subtle one disappears: on the
     # board it has to be unmistakably two dark red flanks.
-    sides = (sideways ** 1.6 * smoothstep(0.05, 0.20, dist)
+    sides = (sideways ** 2.6 * smoothstep(0.05, 0.20, dist)
              * smoothstep(1.05, 0.80, dist))
     rgb = ramp(FIRE_RAMP, heat * (1.0 - SIDE_COOLING * sides))
     rgb += (np.clip(heat, 0.0, 1.0) * sides)[..., None] * np.array(SIDE_EMBER)

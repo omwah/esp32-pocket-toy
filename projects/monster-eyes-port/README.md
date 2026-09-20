@@ -212,6 +212,17 @@ out of the way" for both its open and its closed position, so the blink timer
 still runs but moves nothing: the Eye does not blink and no lid ever crosses
 the fire.
 
+The fire moves by `irisFlow` rather than by spinning, so the flames lick
+outward and never travel around the iris. The iris is nearly the whole
+eyeball, which leaves the sclera as no more than a dim ember at the rim.
+
+Both this package and the renderer settings behind it were tuned against
+screenshots pulled off the board with `GET /api/frame`, not against the
+generator's own preview: at 128 px an eye loses detail the preview keeps, and
+three things that looked right at 240 px -- the brightness of the middle, the
+depth of the dark flanks and the raggedness of the flame tips -- did not
+survive the trip.
+
 ## Radial flow
 
 `irisFlow` animates an iris without turning it. The renderer already had
