@@ -58,6 +58,8 @@ void Adafruit_Monster_Eyes::applyDefaults(void) {
   _settings.eyeRadius = 0;       // Derive from displaySize
   _settings.irisRadius = 0;      // Derive from displaySize
   _settings.slitPupilRadius = 0; // Round pupil
+  _settings.slitPupilHorizontal = false; // Upright, as a cat's is
+  _settings.slitPupilRounded = false;    // Pointed, as a cat's is
   _settings.coverage = 0.6f;
   _settings.coverageRequested = _settings.coverage;
 
@@ -447,26 +449,50 @@ bool Adafruit_Monster_Eyes::calcMap(void) {
   }
 
   if (_settings.slitPupilRadius > 0) {
+    // Only the first quadrant is built; the render loop mirrors it into the
+    // other three. A slit is symmetric about both axes either way round, so
+    // the horizontal one is the vertical one with its two coordinates
+    // exchanged: "across" is the narrow way over the slit and "along" is its
+    // length. For a cat that is x across and y along, for a deer the reverse.
+    const bool horizontal = _settings.slitPupilHorizontal;
+    const bool rounded = _settings.slitPupilRounded;
+    // How thin the bar gets at full constriction, as a fraction of the iris.
+    // Only the rounded family needs it; the lens closes to a point on its own.
+    const float narrowest = iRad * 0.03f;
     for (int y = 0; y < _mapRadius; y++) {
-      const float dy = (float)y + 0.5f, dy2 = dy * dy;
+      const float dy = (float)y + 0.5f;
       for (int x = 0; x < _mapRadius; x++) {
         const float dx = (float)x + 0.5f;
-        const float d2 = dx * dx + dy2;
-        if (d2 > irisRadius2)
+        if ((dx * dx + dy * dy) > irisRadius2)
           continue;
-        const float xp = (float)x + 0.5f;
+        const float across = horizontal ? dy : dx;
+        const float along = horizontal ? dx : dy;
+        const float along2 = along * along;
         for (int i = 126; i >= 0; i--) {
           const float ratio = (float)i / 128.0f; // 0 open .. just under 1 slit
-          // A point between the top of the iris and the top of the slit pupil,
-          // and another between the right of the iris and the centre; find the
-          // circle through both.
-          const float y1 =
-              iRad - (iRad - (float)_settings.slitPupilRadius) * ratio;
-          const float x2 = iRad * (1.0f - ratio);
-          const float xc = (x2 * x2 - y1 * y1) / (2.0f * x2);
-          const float rx = x2 - xc;
-          const float px = xp - xc;
-          if ((px * px + dy2) <= (rx * rx)) {
+          bool inside;
+          if (rounded) {
+            // Contours morph from the iris circle to a stadium: everything
+            // within R of a segment of half-length L laid along the slit.
+            // Both ends stay blunt however far the pupil closes, which is
+            // the difference between a deer's pupil and a cat's.
+            const float len = ratio * (float)_settings.slitPupilRadius;
+            const float rad = iRad * (1.0f - ratio) + narrowest * ratio;
+            const float past = (along > len) ? (along - len) : 0.0f;
+            inside = (past * past + across * across) <= (rad * rad);
+          } else {
+            // A point between the end of the iris and the end of the slit
+            // pupil, and another between the side of the iris and the
+            // centre; find the circle through both.
+            const float y1 =
+                iRad - (iRad - (float)_settings.slitPupilRadius) * ratio;
+            const float x2 = iRad * (1.0f - ratio);
+            const float xc = (x2 * x2 - y1 * y1) / (2.0f * x2);
+            const float rx = x2 - xc;
+            const float px = across - xc;
+            inside = (px * px + along2) <= (rx * rx);
+          }
+          if (inside) {
             _polarDist[y * _mapRadius + x] = (int8_t)(-1 - i);
             break;
           }

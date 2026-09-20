@@ -50,6 +50,8 @@ struct EyesSettings {
   int eyeRadius;       ///< Eyeball radius in screen pixels; 0 derives it
   int irisRadius;      ///< Iris radius in screen pixels; 0 derives it
   int slitPupilRadius; ///< Slit pupil radius; 0 round, -1 derives it
+  bool slitPupilHorizontal; ///< Lay the slit across the eye: deer, goat, horse
+  bool slitPupilRounded;    ///< Blunt the slit's ends instead of pointing them
   float coverage;      ///< Effective, possibly raised by finalize()
   float coverageRequested;   ///< What the sketch or config actually asked for
   uint16_t pupilColor;       ///< Pupil colour, native-endian RGB565
@@ -360,6 +362,31 @@ public:
    * @param px Radius in screen pixels; 0 gives a round pupil, -1 derives it.
    */
   void setSlitPupilRadius(int px) { _settings.slitPupilRadius = px; }
+
+  /**
+   * @brief Which way the slit pupil lies.
+   *
+   * The radius above is measured along the slit either way, so a horizontal
+   * slit of a given radius is as wide as a vertical one is tall.
+   *
+   * @param horizontal True for a deer, goat or horse; false for a cat.
+   */
+  void setSlitPupilHorizontal(bool horizontal) {
+    _settings.slitPupilHorizontal = horizontal;
+  }
+
+  /**
+   * @brief Blunt ends on the slit pupil.
+   *
+   * The default slit is a lens: two arcs meeting at a point, which is what a
+   * cat has. A deer, goat or horse has a bar with rounded ends, and this
+   * swaps the contours for that shape.
+   *
+   * @param rounded True for a bar with rounded ends, false for a lens.
+   */
+  void setSlitPupilRounded(bool rounded) {
+    _settings.slitPupilRounded = rounded;
+  }
 
   /**
    * @brief How much of the eyeball surface the polar maps cover.

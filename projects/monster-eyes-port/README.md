@@ -15,6 +15,11 @@ Wi-Fi, and overlays reach feature parity with the production application.
 - Includes all 14 upstream M4 EYES packages and scales their geometry at runtime.
 - Adds directly installable packages for all ten production Uncanny Eyes styles,
   generated from their editable artwork and including package-local sounds.
+- Extends the renderer with `slitPupilHorizontal`, laying the slit pupil across
+  the eye rather than up it, and `slitPupilRounded`, which blunts its ends
+  instead of bringing them to a point -- between them, the bar a deer, goat or
+  horse has rather than the lens a cat has. The slit radius is measured along
+  the slit whichever way it lies.
 - Discovers package directories under `/eyes`; eye names and paths are not
   compiled into firmware.
 - Resolves package-relative asset paths and reconstructs the renderer safely
@@ -123,6 +128,38 @@ The corresponding local-network API endpoints are:
 Package files are limited to 1 MiB each and 3 MiB per staged package. Uploads
 accept `config.eye`, 24-bit uncompressed texture BMPs, 1-bit uncompressed eyelid
 BMPs, and PCM WAV files.
+
+## The deer package
+
+`data/eyes/deer` is the one migrated style whose artwork is generated rather
+than carried over, because the original faked its horizontal pupil by painting
+two black lobes into the bottom rows of the iris texture, at the angles left
+and right of centre -- with a round pupil that is the only way to widen one
+sideways. The renderer builds the slit itself now, so the texture is iris all
+the way down and the fibres reach the pupil edge:
+
+```sh
+python projects/monster-eyes-port/tools/make_deer_eye.py
+```
+
+The pupil is a bar with blunt ends (`slitPupilHorizontal` and
+`slitPupilRounded`), kept well short of the iris so it reads as a rounded
+oval. Its height is not set directly: `pupilMax` picks which contour of the
+morph from iris circle to bar the pupil edge lands on, so thinning the bar
+means lowering it.
+
+Colours are read off photographs of a sika doe and a red deer as a profile
+down through the eye: a nearly black limbal ring, brown through the body of
+the iris, and warmer tones below where the light falls. The pupil is
+photographed as a dark blue-grey rather than black. Deer sclera is brown and
+barely shows, so it is near black.
+
+The eyelids are generated as well. The opening is an ellipse, which has a
+vertical tangent at each corner, so the lids meet there roundly and the eye
+keeps its width to the edge; the migrated pair tapered to a point instead.
+Their closed edges are arcs rather than straight lines, because the renderer
+interpolates lid shape between open and closed on every frame and a flat lid
+closes like a shutter.
 
 ## Migration validation
 

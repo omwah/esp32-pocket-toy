@@ -571,6 +571,14 @@ void Adafruit_Monster_Eyes::applyConfigRoot(const void *variantPtr) {
   _settings.irisRadius = dwim(o["irisRadius"], _settings.irisRadius);
   _settings.slitPupilRadius =
       dwim(o["slitPupilRadius"], _settings.slitPupilRadius);
+  // The radius is measured along the slit whichever way it lies, so turning
+  // an upright slit on its side needs no other change to a config.
+  v = o["slitPupilHorizontal"];
+  if (v.is<bool>() || v.is<int>())
+    _settings.slitPupilHorizontal = v.as<bool>();
+  v = o["slitPupilRounded"];
+  if (v.is<bool>() || v.is<int>())
+    _settings.slitPupilRounded = v.as<bool>();
   _settings.gazeMax = (uint32_t)dwim(o["gazeMax"], (int32_t)_settings.gazeMax);
   _settings.fixate = dwim(o["fixate"], _settings.fixate);
 
