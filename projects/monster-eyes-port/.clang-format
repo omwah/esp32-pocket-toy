@@ -1,0 +1,15 @@
+# Google style with a four-space indent, 80 columns, pointers bound to the
+# name. Access specifiers sit flush with the class body.
+BasedOnStyle: Google
+Language: Cpp
+ColumnLimit: 80
+IndentWidth: 4
+ContinuationIndentWidth: 4
+AccessModifierOffset: -4
+DerivePointerAlignment: false
+PointerAlignment: Right
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+SortIncludes: false

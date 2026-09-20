@@ -1,5 +1,7 @@
 #pragma once
+
 #include <Arduino.h>
+
 constexpr int SCREEN_W = 320;
 constexpr int SCREEN_H = 240;
 constexpr uint8_t TOUCH_I2C_ADDR = 0x38;
