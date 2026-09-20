@@ -50,6 +50,7 @@ add_executable(eye-sim
     src/capture.cpp
     src/package_io.cpp
     src/image_doc.cpp
+    src/gif_writer.cpp
     shim/Arduino.cpp
     shim/FFat.cpp
     ${EYES_LIB_DIR}/Adafruit_Monster_Eyes.cpp

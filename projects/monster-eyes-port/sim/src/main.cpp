@@ -19,6 +19,7 @@
  */
 
 #include "capture.h"
+#include "gif_writer.h"
 #include "linux_display.h"
 
 #include <Adafruit_Monster_Eyes.h>
@@ -74,6 +75,12 @@ struct Options {
   bool autoGazeSet = false;       ///< --no-auto-gaze was given
   bool autoBlinkSet = false;      ///< --no-auto-blink was given
   bool autoGaze = true;           ///< Let the gaze animator run
+  std::string gifPath;            ///< --gif destination, empty for none
+  int gifSearch = 900;            ///< Frames to search for a loop
+  float gifSeconds = 6.0f;        ///< Longest loop to accept, in seconds
+  int gifScale = 2;               ///< Whole-pixel magnification for the GIF
+  bool pupilFixed = false;        ///< Hold the pupil at pupilValue
+  float pupilValue = 0.5f;        ///< Held dilation, 0 tight to 1 wide
   bool gazeFixed = false;         ///< Hold the gaze at gazeFixedX/Y
   float gazeFixedX = 0.0f;        ///< Held gaze, -1..1
   float gazeFixedY = 0.0f;        ///< Held gaze, -1..1
@@ -144,6 +151,7 @@ public:
     if (index >= packages.size())
       return false;
     destroy();
+    _packages = &packages;
     _index = index;
     _display.clear(0);
 
@@ -172,6 +180,8 @@ public:
       _eyes->setAutoBlink(autoBlink);
     if (_fixedGaze)
       setScreenGaze(*_eyes, _fixedGazeX, _fixedGazeY);
+    if (_fixedPupil)
+      _eyes->setPupil(_pupilValue);
     return true;
   }
 
@@ -184,6 +194,15 @@ public:
     _fixedGaze = true;
     _fixedGazeX = x;
     _fixedGazeY = y;
+  }
+
+  /**
+   * @brief Hold the pupil at a fixed dilation across reloads.
+   * @param dilation 0 tight to 1 wide.
+   */
+  void holdPupil(float dilation) {
+    _fixedPupil = true;
+    _pupilValue = dilation;
   }
 
   /**
@@ -243,6 +262,9 @@ public:
   /** @brief Package currently loaded. @return Index. */
   size_t index(void) const { return _index; }
 
+  /** @brief The package list this was loaded from. @return Packages. */
+  const std::vector<Package> &packages(void) const { return *_packages; }
+
 private:
   void destroy(void) {
     delete _eyes;
@@ -252,6 +274,9 @@ private:
   LinuxDisplay &_display;              ///< Backend passed to the renderer
   Adafruit_Monster_Eyes *_eyes = nullptr; ///< Live renderer
   size_t _index = 0;                   ///< Package index
+  const std::vector<Package> *_packages = nullptr; ///< List load() was given
+  bool _fixedPupil = false;            ///< Reapply a held pupil on load
+  float _pupilValue = 0.5f;            ///< Held dilation
   bool _fixedGaze = false;             ///< Reapply a held gaze on load
   float _fixedGazeX = 0.0f;            ///< Held gaze X
   float _fixedGazeY = 0.0f;            ///< Held gaze Y
@@ -379,6 +404,18 @@ void usage(const char *argv0) {
       "                   the window loop (default: 30; 0 uncaps the window)\n"
       "  --seed N         Pseudo-random seed (default: 1)\n"
       "\n"
+      "GIF:\n"
+      "  --gif PATH       Write a seamlessly looping animated GIF. The eye is\n"
+      "                   rendered until a frame comes round exactly the same\n"
+      "                   as an earlier one, and everything between the two is\n"
+      "                   the loop -- so it plays forever with no jump, with\n"
+      "                   the blinks and glances left in\n"
+      "  --gif-search N   Frames to search for that repeat (default: 900)\n"
+      "  --gif-seconds N  Longest loop to accept; the longest one that fits is\n"
+      "                   used, since a whole minute of eye is a large file\n"
+      "                   (default: 6)\n"
+      "  --gif-scale N    Magnify the GIF by whole pixels (default: 2)\n"
+      "\n"
       "Capture:\n"
       "  --frames N       Render N frames headless and exit\n"
       "  --skip N         Render N frames before capturing, to let the eye\n"
@@ -390,6 +427,10 @@ void usage(const char *argv0) {
       "Animation:\n"
       "  --gaze X,Y       Point the gaze and hold it, each -1..1; implies\n"
       "                   --no-auto-gaze. +X is right and +Y is up on screen\n"
+      "  --pupil N        Hold the pupil at this dilation, 0 tight to 1 wide.\n"
+      "                   The dilation animator wanders even with the gaze and\n"
+      "                   blink animators off, so this is what a seamless loop\n"
+      "                   needs\n"
       "  --no-auto-gaze   Hold the gaze still instead of letting it wander\n"
       "  --no-auto-blink  Never blink on its own\n"
       "  --quiet          Suppress the library's startup narration\n"
@@ -460,6 +501,18 @@ bool parseArgs(int argc, char **argv, Options &opt, bool &list) {
       }
       opt.gazeFixed = true;
       opt.autoGaze = false;
+    } else if (!strcmp(a, "--gif")) {
+      opt.gifPath = value();
+      opt.headless = true;
+    } else if (!strcmp(a, "--gif-search")) {
+      opt.gifSearch = atoi(value());
+    } else if (!strcmp(a, "--gif-seconds")) {
+      opt.gifSeconds = (float)atof(value());
+    } else if (!strcmp(a, "--gif-scale")) {
+      opt.gifScale = atoi(value());
+    } else if (!strcmp(a, "--pupil")) {
+      opt.pupilValue = (float)atof(value());
+      opt.pupilFixed = true;
     } else if (!strcmp(a, "--seed")) {
       opt.seed = (uint32_t)strtoul(value(), nullptr, 0);
     } else {
@@ -478,6 +531,12 @@ bool parseArgs(int argc, char **argv, Options &opt, bool &list) {
     opt.skip = 0;
   if (opt.outPrefix.empty())
     opt.outPrefix = "eye-capture";
+  if (opt.gifSearch < 2)
+    opt.gifSearch = 2;
+  if (opt.gifScale < 1)
+    opt.gifScale = 1;
+  if (opt.gifSeconds <= 0.0f)
+    opt.gifSeconds = 6.0f;
   return true;
 }
 
@@ -547,6 +606,167 @@ int captureSequence(EyeHost &host, LinuxDisplay &display, const Options &opt,
          states.size(), opt.outPrefix.c_str(), opt.outPrefix.c_str(),
          (int)states.size() - 1, path);
   return (int)states.size();
+}
+
+/**
+ * @brief Render a seamlessly looping GIF.
+ *
+ * The animators are deliberately left running. Gaze and blink are randomly
+ * timed, so no fixed frame count repeats and there is no arithmetic that gives
+ * a loop; what there is instead is a finite amount of state, so the eye does
+ * come round to exactly where it was. This renders until a frame is
+ * bit-identical to an earlier one and takes everything between the two.
+ *
+ * Because that is an EXACT repeat of the whole framebuffer, the wrap is not
+ * merely a small step -- it is the same step the animation would have taken
+ * anyway, so there is nothing to see at the join.
+ *
+ * Frames are compared by hash rather than kept, since the search window is
+ * hundreds of frames and each is 150 KB. The renderer is deterministic, so the
+ * chosen span is simply rendered again to collect it.
+ *
+ * @param host    Live renderer.
+ * @param display Backend holding the pixels.
+ * @param opt     Settings; gifPath, gifSearch, gifScale and fps are used.
+ * @param eyeName Package name, for the message.
+ * @return true if a loop was found and written.
+ */
+bool writeLoopingGif(EyeHost &host, LinuxDisplay &display, const Options &opt,
+                     const char *eyeName) {
+  Adafruit_Monster_Eyes *eyes = host.eyes();
+  if (!eyes)
+    return false;
+
+  const uint32_t stepUs = (uint32_t)(1000000 / (opt.fps > 0 ? opt.fps : 30));
+  const size_t pixels = (size_t)LinuxDisplay::PANEL_W * LinuxDisplay::PANEL_H;
+
+  auto hashFrame = [&](void) {
+    // FNV-1a over the framebuffer. A collision would mean a false loop, at
+    // odds of about one in 10^14 for a search this size.
+    const uint16_t *fb = display.framebuffer();
+    uint64_t h = 1469598103934665603ULL;
+    for (size_t i = 0; i < pixels; ++i) {
+      h ^= fb[i];
+      h *= 1099511628211ULL;
+    }
+    return h;
+  };
+
+  // The longest loop that fits the budget. Longer spans hold more of the
+  // animation -- a blink or two, a glance -- but a GIF is an uncompressed-ish
+  // format and half a minute of eye runs to tens of megabytes, so there is a
+  // ceiling. Whatever is nearest under it wins; failing that, the shortest
+  // loop there is, so something is always produced.
+  const int fps = opt.fps > 0 ? opt.fps : 30;
+  const int maxFrames = (int)(opt.gifSeconds * fps);
+  // Two frames is the floor. A longer one would reject packages whose whole
+  // animation is shorter than that -- an eye with no lids and no tracking
+  // comes round in well under a second -- and the real guard against a
+  // useless loop is that something has to change inside it, not that it lasts
+  // a particular time.
+  const int minFrames = 2;
+  // Every frame's hash, and every span that repeats. Selection happens
+  // afterwards rather than online, because whether a span is worth using
+  // depends on what is inside it, not just how long it is.
+  std::map<uint64_t, int> firstSeen;
+  std::vector<uint64_t> hashes;
+  std::vector<std::pair<int, int>> candidates; // start, span
+  hashes.reserve((size_t)opt.gifSearch);
+  for (int i = 0; i < opt.gifSearch; ++i) {
+    eyes->animate();
+    const uint64_t h = hashFrame();
+    hashes.push_back(h);
+    const auto seen = firstSeen.find(h);
+    if (seen != firstSeen.end())
+      candidates.push_back({seen->second, i - seen->second});
+    else
+      firstSeen[h] = i;
+    hostClockAdvance(stepUs);
+  }
+
+  // A span whose frames are all the same is a real loop and a useless one: a
+  // still eye repeats every single frame. Require something to actually happen
+  // inside it.
+  auto hasMotion = [&](int start, int span) {
+    for (int j = start + 1; j < start + span; ++j)
+      if (hashes[(size_t)j] != hashes[(size_t)start])
+        return true;
+    return false;
+  };
+
+  int loopStart = -1, loopLength = 0;
+  int fallbackStart = -1, fallbackLength = 0;
+  for (const auto &c : candidates) {
+    const int start = c.first, span = c.second;
+    if (span < minFrames || !hasMotion(start, span))
+      continue;
+    if (span <= maxFrames && span > loopLength) {
+      loopStart = start;
+      loopLength = span;
+    }
+    if (fallbackStart < 0 || span < fallbackLength) {
+      fallbackStart = start;
+      fallbackLength = span;
+    }
+  }
+  if (loopStart < 0 && fallbackStart >= 0) {
+    loopStart = fallbackStart;
+    loopLength = fallbackLength;
+    fprintf(stderr,
+            "The shortest loop with animation in it is %.1fs, longer than "
+            "--gif-seconds; using it anyway.\n",
+            (float)loopLength / (float)fps);
+  }
+
+  if (loopStart < 0) {
+    fprintf(stderr,
+            "No repeat within %d frames, so there is no seamless loop to "
+            "write. Try --gif-search with a larger number.\n",
+            opt.gifSearch);
+    return false;
+  }
+
+  // Render it again, from the start, and keep the span this time.
+  hostClockSet(0);
+  hostRandomForceSeed(opt.seed);
+  if (!host.load(host.packages(), host.index(), false, opt.autoGaze,
+                 opt.autoBlink, opt.autoGazeSet, opt.autoBlinkSet))
+    return false;
+  eyes = host.eyes();
+
+  // Collect the span, then drop any tail that already matches the first
+  // frame. A still stretch can repeat at more than one spacing, and keeping
+  // both ends would play the same picture twice at the join -- not a seam, but
+  // a stutter.
+  std::vector<std::vector<uint16_t>> loop;
+  const size_t pixelCount = (size_t)LinuxDisplay::PANEL_W *
+                            LinuxDisplay::PANEL_H;
+  for (int i = 0; i < loopStart + loopLength; ++i) {
+    eyes->animate();
+    if (i >= loopStart)
+      loop.push_back(std::vector<uint16_t>(
+          display.framebuffer(), display.framebuffer() + pixelCount));
+    hostClockAdvance(stepUs);
+  }
+  while (loop.size() > 1 && loop.back() == loop.front())
+    loop.pop_back();
+  loopLength = (int)loop.size();
+
+  GifWriter gif(LinuxDisplay::PANEL_W, LinuxDisplay::PANEL_H, opt.gifScale);
+  for (const auto &frame : loop)
+    gif.addFrame(frame.data());
+
+  std::string error;
+  const int delayMs = 1000 / (opt.fps > 0 ? opt.fps : 30);
+  if (!gif.write(opt.gifPath, delayMs, &error)) {
+    fprintf(stderr, "Could not write %s: %s\n", opt.gifPath.c_str(),
+            error.c_str());
+    return false;
+  }
+  printf("%s: %s, %d frames at %d fps, %.1fs, loops exactly\n",
+         opt.gifPath.c_str(), eyeName, loopLength, opt.fps,
+         (float)loopLength / (float)opt.fps);
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -1334,9 +1554,16 @@ int main(int argc, char **argv) {
   EyeHost host(display);
   if (opt.gazeFixed)
     host.holdGaze(opt.gazeFixedX, opt.gazeFixedY);
+  if (opt.pupilFixed)
+    host.holdPupil(opt.pupilValue);
   if (!host.load(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink,
                  opt.autoGazeSet, opt.autoBlinkSet))
     return 1;
+
+  if (!opt.gifPath.empty())
+    return writeLoopingGif(host, display, opt, packages[index].id.c_str())
+               ? 0
+               : 1;
 
   if (opt.headless) {
     if (opt.frames <= 0) {

@@ -225,6 +225,39 @@ beside the editor is how you tell what a stroke did. The renderer converts to
 RGB565 as it loads, so the picker's colours are shown already rounded to what
 will survive, and the swatch row offers the colours the image actually uses.
 
+## Looping GIFs
+
+```sh
+./sim/build/eye-sim --eye hazel --gif /tmp/hazel.gif
+```
+
+writes a GIF that loops with no visible join, with the blinks and glances left
+in. There is no arithmetic that gives one: gaze and blink are randomly timed,
+so no fixed frame count repeats. What there is instead is a finite amount of
+state, so the eye does come round to exactly where it was — the simulator
+renders until a frame is **bit-identical** to an earlier one and takes
+everything between the two. Because that is an exact repeat of the whole
+framebuffer, the wrap is not a small jump that has been smoothed over; it is
+the step the animation would have taken anyway.
+
+| Flag | |
+|---|---|
+| `--gif PATH` | Where to write it |
+| `--gif-seconds N` | Longest loop to accept, default 6. The longest that fits wins; a GIF is a fat format and half a minute of eye runs to tens of megabytes |
+| `--gif-search N` | Frames to look through for the repeat, default 900 |
+| `--gif-scale N` | Whole-pixel magnification, default 2 |
+
+`--fps` sets the frame rate as usual. The encoder is written into the simulator
+rather than shelled out to ffmpeg, so a GIF needs no second toolchain
+installed, and it is deterministic: the same command gives the same bytes. That
+last part is load-bearing. One palette is built from every frame at once and
+there is no dithering, because anything that varies per frame puts a visible
+seam back into a loop that was exact — ordered dithering is the usual culprit,
+and it made an early version of this shimmer at the join.
+
+Different packages settle into different loops: an eye with no lids and no
+tracking repeats in under a second, while one that blinks needs a few.
+
 ## Capturing frames for an agent
 
 ```sh
