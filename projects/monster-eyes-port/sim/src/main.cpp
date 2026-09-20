@@ -35,7 +35,12 @@
 #include <vector>
 
 #ifndef SIM_HEADLESS_ONLY
+#include "config_panel.h"
+#include "package_io.h"
 #include <SDL3/SDL.h>
+#include <imgui.h>
+#include <imgui_impl_sdl3.h>
+#include <imgui_impl_sdlrenderer3.h>
 #endif
 
 namespace {
@@ -65,6 +70,8 @@ struct Options {
   float gazeFixedX = 0.0f;        ///< Held gaze, -1..1
   float gazeFixedY = 0.0f;        ///< Held gaze, -1..1
   bool autoBlink = true;          ///< Let the blink animator run
+  bool panel = false;             ///< Open the config editor at startup
+  int panelWidth = 380;           ///< Editor width in window pixels
 };
 
 // ---------------------------------------------------------------------------
@@ -165,6 +172,47 @@ public:
     _fixedGazeY = y;
   }
 
+  /**
+   * @brief Rebuild, putting the eye back the way it was looking.
+   *
+   * Applying an edit means a rebuild, because the polar maps and the texture
+   * budget are sized from the config. A bare rebuild would re-centre the gaze
+   * and restart the blink, which is very visible while dragging a slider, so
+   * the animator's position is read out first and put back afterwards.
+   *
+   * @param packages  Known packages.
+   * @param index     Package to load.
+   * @param verbose   Narrate startup.
+   * @param autoGaze  Let the gaze animator run.
+   * @param autoBlink Let the blink animator run.
+   * @param gazeOwned Something else is steering the gaze, so keep holding it.
+   * @return true if the renderer came up.
+   */
+  bool reload(const std::vector<Package> &packages, size_t index, bool verbose,
+              bool autoGaze, bool autoBlink, bool gazeOwned) {
+    float gazeX = 0.0f, gazeY = 0.0f, blink = 0.0f, iris = 0.5f;
+    const bool had = _eyes != nullptr;
+    if (had) {
+      gazeX = _eyes->gazeX();
+      gazeY = _eyes->gazeY();
+      blink = _eyes->blinkPhase();
+      iris = _eyes->irisFraction();
+    }
+    if (!load(packages, index, verbose, autoGaze, autoBlink))
+      return false;
+    if (had) {
+      _eyes->setGaze(gazeX, gazeY);
+      if (!gazeOwned)
+        _eyes->releaseGaze();
+      // Set then release: the phase is restored, but the lids go back to the
+      // animator rather than being frozen where they were.
+      _eyes->setBlink(blink);
+      _eyes->releaseBlink();
+      _eyes->setIrisFraction(iris);
+    }
+    return true;
+  }
+
   /** @brief The live renderer, or NULL. @return Instance. */
   Adafruit_Monster_Eyes *eyes(void) { return _eyes; }
   /** @brief Package currently loaded. @return Index. */
@@ -248,6 +296,7 @@ const KeyHelp kKeyHelp[] = {
     {"r", "reload config.eye from disk"},
     {"c", "capture frames to --out"},
     {"tab", "toggle the status overlay"},
+    {"p", "toggle the config.eye editor"},
     {"?", "this list"},
     {"q, escape", "quit"},
 };
@@ -264,6 +313,8 @@ void usage(const char *argv0) {
       "  --eye ID         Package to start on (default: the first found)\n"
       "  --list           Print the packages found and exit\n"
       "  --scale N        Window pixels per panel pixel (default: 3)\n"
+      "  --panel          Open the config.eye editor beside the display\n"
+      "  --panel-width N  Editor width in pixels (default: 380)\n"
       "  --fps N          Frame rate, for the virtual clock and as the cap on\n"
       "                   the window loop (default: 30; 0 uncaps the window)\n"
       "  --seed N         Pseudo-random seed (default: 1)\n"
@@ -309,6 +360,8 @@ bool parseArgs(int argc, char **argv, Options &opt, bool &list) {
       exit(0);
     } else if (!strcmp(a, "--list")) {
       list = true;
+    } else if (!strcmp(a, "--panel")) {
+      opt.panel = true;
     } else if (!strcmp(a, "--quiet")) {
       opt.quiet = true;
     } else if (!strcmp(a, "--no-auto-gaze")) {
@@ -326,6 +379,8 @@ bool parseArgs(int argc, char **argv, Options &opt, bool &list) {
       opt.outPrefix = value();
     } else if (!strcmp(a, "--scale")) {
       opt.scale = atoi(value());
+    } else if (!strcmp(a, "--panel-width")) {
+      opt.panelWidth = atoi(value());
     } else if (!strcmp(a, "--frames")) {
       opt.frames = atoi(value());
       opt.headless = true;
@@ -351,6 +406,8 @@ bool parseArgs(int argc, char **argv, Options &opt, bool &list) {
 
   if (opt.scale < 1)
     opt.scale = 1;
+  if (opt.panelWidth < 200)
+    opt.panelWidth = 200;
   if (opt.fps < 0)
     opt.fps = 0;
   if (opt.skip < 0)
@@ -439,19 +496,33 @@ int captureSequence(EyeHost &host, LinuxDisplay &display, const Options &opt,
  * @brief Run the interactive preview until the window is closed.
  * @param host     Live renderer, reloaded in place when the eye changes.
  * @param display  Backend holding the pixels.
- * @param packages Packages the eye can be switched between.
+ * @param packages Packages the eye can be switched between; Save As adds to
+ *                 this, so it is held by value.
  * @param opt      Settings.
  * @return Process exit status.
  */
 int runWindow(EyeHost &host, LinuxDisplay &display,
-              const std::vector<Package> &packages, Options &opt) {
+              std::vector<Package> packages, Options &opt) {
   if (!SDL_Init(SDL_INIT_VIDEO)) {
     fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
     return 1;
   }
 
-  const int winW = LinuxDisplay::PANEL_W * opt.scale;
-  const int winH = LinuxDisplay::PANEL_H * opt.scale;
+  // The eye keeps its integer scale whether or not the editor is open; the
+  // window simply grows to the right to make room, so toggling the panel never
+  // resamples the picture and the eye never moves.
+  const int eyeW = LinuxDisplay::PANEL_W * opt.scale;
+  const int eyeH = LinuxDisplay::PANEL_H * opt.scale;
+  bool panelOpen = opt.panel;
+  const int panelW = opt.panelWidth;
+  // The help strip sits BELOW the eye rather than over it, so the preview is
+  // never obscured. Three lines is enough for the longest explanation at this
+  // width; it only exists while the editor is open.
+  const int helpH = (int)(opt.scale * 0.5f * 13.0f * 3.0f) + 12;
+  auto windowW = [&](bool open) { return eyeW + (open ? panelW : 0); };
+  auto windowH = [&](bool open) { return eyeH + (open ? helpH : 0); };
+  const int winW = windowW(panelOpen);
+  const int winH = windowH(panelOpen);
   SDL_Window *window = nullptr;
   SDL_Renderer *renderer = nullptr;
   if (!SDL_CreateWindowAndRenderer("Monster Eyes preview", winW, winH, 0,
@@ -477,6 +548,51 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
   // what this tool exists to show.
   SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
 
+  // Dear ImGui, for the config editor. Its font is scaled with the window so
+  // the panel stays readable at a 3x or 4x eye scale.
+  IMGUI_CHECKVERSION();
+  ImGui::CreateContext();
+  ImGuiIO &io = ImGui::GetIO();
+  io.IniFilename = nullptr; // Do not litter the working directory
+  ImGui::StyleColorsDark();
+  ImGui::GetStyle().ScaleAllSizes((float)opt.scale * 0.5f);
+  io.FontGlobalScale = (float)opt.scale * 0.5f;
+  ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
+  ImGui_ImplSDLRenderer3_Init(renderer);
+
+  // The editor writes config.eye files for the renderer to read, into a
+  // scratch mirror of the asset tree rather than into the repository. Built on
+  // first use, so a run that never opens the panel costs nothing.
+  // Declared before the lambdas that capture it. The name also shadows POSIX
+  // index(3), which is why it cannot simply be used earlier than this.
+  size_t index = host.index();
+
+  // A renderer that is constructed and never begun, purely to read the
+  // library's defaults in config space. begin() is what rescales geometry to
+  // the display, so these must be taken before it runs.
+  const EyesSettings configDefaults = Adafruit_Monster_Eyes(&display).config();
+
+  // Applying an edit means handing the renderer a config.eye to parse, since
+  // that is the only way it takes settings. The shim serves that from memory,
+  // so no file is written and no copy of the asset tree exists on disk.
+  ConfigDocument doc;
+  PanelState panelState;
+  bool docLoaded = false;
+
+  // Read the package's real config.eye into the editor. The file on disk is
+  // only ever read; an edit shadows it in memory rather than replacing it.
+  auto openDocument = [&](size_t which) {
+    doc.load(opt.assetRoot + "/eyes" + "/" + packages[which].id +
+             "/config.eye");
+    panelState.message.clear();
+    docLoaded = true;
+  };
+
+  auto applyDocument = [&](size_t which) -> bool {
+    FFat.setOverlay(packages[which].config.c_str(), doc.serialise());
+    return true;
+  };
+
   // The window follows the host clock: the frame rate the library reports here
   // is the one it is really achieving, not a figure derived from a fixed step.
   hostClockUseRealTime(true);
@@ -494,23 +610,33 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
   const uint64_t frameNs = opt.fps > 0 ? 1000000000ULL / (uint64_t)opt.fps : 0;
   uint64_t nextFrameNs = SDL_GetTicksNS();
 
+  if (panelOpen)
+    openDocument(index);
+
   bool running = true;
   bool overlay = true;
   bool showKeys = false;
   bool mouseGaze = false;
   float gazeX = 0.0f, gazeY = 0.0f;
   int captureCount = 8;
-  size_t index = host.index();
 
   while (running) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
+      ImGui_ImplSDL3_ProcessEvent(&event);
+      // While a text field has focus, 'q' means the letter q.
+      const bool imguiWantsKeys = panelOpen && ImGui::GetIO().WantCaptureKeyboard;
+      const bool imguiWantsMouse = panelOpen && ImGui::GetIO().WantCaptureMouse;
       if (event.type == SDL_EVENT_QUIT) {
         running = false;
-      } else if (event.type == SDL_EVENT_MOUSE_MOTION && mouseGaze) {
+      } else if (event.type == SDL_EVENT_KEY_DOWN && imguiWantsKeys) {
+        // Swallowed by the editor.
+      } else if (event.type == SDL_EVENT_MOUSE_MOTION && mouseGaze &&
+                 !imguiWantsMouse) {
         // Window coordinates to the -1..1 the library takes.
-        gazeX = (event.motion.x / (float)winW) * 2.0f - 1.0f;
-        gazeY = 1.0f - (event.motion.y / (float)winH) * 2.0f;
+        gazeX = (event.motion.x / (float)eyeW) * 2.0f - 1.0f;
+        gazeY = 1.0f - (event.motion.y / (float)eyeH) * 2.0f;
+        gazeX = gazeX < -1.0f ? -1.0f : (gazeX > 1.0f ? 1.0f : gazeX);
         if (host.eyes())
           setScreenGaze(*host.eyes(), gazeX, gazeY);
       } else if (event.type == SDL_EVENT_KEY_DOWN) {
@@ -542,6 +668,12 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
           break;
         case SDLK_TAB:
           overlay = !overlay;
+          break;
+        case SDLK_P:
+          panelOpen = !panelOpen;
+          if (panelOpen && !docLoaded)
+            openDocument(index);
+          SDL_SetWindowSize(window, windowW(panelOpen), windowH(panelOpen));
           break;
         case SDLK_G:
           opt.autoGaze = !opt.autoGaze;
@@ -587,12 +719,21 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
           const int direction = (event.key.key == SDLK_RIGHTBRACKET) ? 1 : -1;
           index = (index + packages.size() + (size_t)direction) %
                   packages.size();
+          // A different package means a different file, so the editor follows
+          // it and the library goes back to reading the real assets until the
+          // next edit.
+          FFat.clearOverlays();
+          if (panelOpen || docLoaded)
+            openDocument(index);
           host.load(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink);
           break;
         }
         case SDLK_R:
           // Rebuilding is the only honest reload: the polar maps and the
           // texture budget are both sized from the config being reread.
+          FFat.clearOverlays();
+          if (panelOpen || docLoaded)
+            openDocument(index);
           host.load(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink);
           break;
         case SDLK_C: {
@@ -619,9 +760,32 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
       SDL_UpdateTexture(texture, nullptr, display.framebuffer(),
                         LinuxDisplay::PANEL_W * (int)sizeof(uint16_t));
 
+    PanelResult panel;
+    if (panelOpen) {
+      ImGui_ImplSDLRenderer3_NewFrame();
+      ImGui_ImplSDL3_NewFrame();
+      ImGui::NewFrame();
+      PanelLayout layout;
+      layout.panelX = (float)eyeW;
+      layout.panelW = (float)panelW;
+      layout.panelH = (float)windowH(true);
+      layout.helpX = 0.0f;
+      layout.helpY = (float)eyeH;
+      layout.helpW = (float)eyeW;
+      layout.helpH = (float)helpH;
+      std::vector<std::string> names;
+      names.reserve(packages.size());
+      for (const Package &p : packages)
+        names.push_back(p.id);
+      panel = drawConfigPanel(doc, configDefaults, panelState, layout, names,
+                              index);
+      ImGui::Render();
+    }
+
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
-    SDL_RenderTexture(renderer, texture, nullptr, nullptr);
+    const SDL_FRect eyeRect = {0.0f, 0.0f, (float)eyeW, (float)eyeH};
+    SDL_RenderTexture(renderer, texture, nullptr, &eyeRect);
 
     if (overlay) {
       // SDL's built-in debug font is 8px, which is unreadable at a 3x window
@@ -629,22 +793,23 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
       const float textScale = (float)opt.scale * 0.5f;
       SDL_SetRenderScale(renderer, textScale, textScale);
       SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+      const float tx = 4.0f;
       char line[256];
       Adafruit_Monster_Eyes *eyes = host.eyes();
       snprintf(line, sizeof(line), "%s  %.1f fps  %dpx",
                packages[index].id.c_str(), eyes ? eyes->frameRate() : 0.0f,
                eyes ? eyes->eyeSize() : 0);
-      SDL_RenderDebugText(renderer, 4, 4, line);
+      SDL_RenderDebugText(renderer, tx, 4, line);
       snprintf(line, sizeof(line), "gaze %+.2f %+.2f  blink %.2f  iris %.2f",
                eyes ? screenGazeX(*eyes) : 0.0f,
                eyes ? screenGazeY(*eyes) : 0.0f,
                eyes ? eyes->blinkPhase() : 0.0f,
                eyes ? eyes->irisFraction() : 0.0f);
-      SDL_RenderDebugText(renderer, 4, 16, line);
+      SDL_RenderDebugText(renderer, tx, 16, line);
       snprintf(line, sizeof(line), "auto gaze %s  blink %s  mouse %s   ? keys",
                opt.autoGaze ? "on" : "off", opt.autoBlink ? "on" : "off",
                mouseGaze ? "on" : "off");
-      SDL_RenderDebugText(renderer, 4, 28, line);
+      SDL_RenderDebugText(renderer, tx, 28, line);
       SDL_SetRenderScale(renderer, 1.0f, 1.0f);
     }
 
@@ -654,7 +819,7 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
       // on screen while the list is open.
       SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
       SDL_SetRenderDrawColor(renderer, 0, 0, 0, 200);
-      SDL_RenderFillRect(renderer, nullptr);
+      SDL_RenderFillRect(renderer, &eyeRect);
 
       SDL_SetRenderScale(renderer, textScale, textScale);
       SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
@@ -662,27 +827,84 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
       // Laid out in the scaled coordinate space, where the debug font's glyphs
       // are 8 pixels wide and the window is winW/textScale across.
       const float lineH = 12.0f;
+      const float kx = 10.0f;
       float y = 10.0f;
-      SDL_RenderDebugText(renderer, 10, y, "KEYS");
+      SDL_RenderDebugText(renderer, kx, y, "KEYS");
       y += lineH * 1.5f;
       char line[128];
       for (const KeyHelp &row : kKeyHelp) {
         snprintf(line, sizeof(line), "%-10s %s", row.keys, row.what);
-        SDL_RenderDebugText(renderer, 10, y, line);
+        SDL_RenderDebugText(renderer, kx, y, line);
         y += lineH;
       }
       y += lineH * 0.5f;
       snprintf(line, sizeof(line), "eye %s   %d fps cap   scale %dx",
                packages[index].id.c_str(), opt.fps, opt.scale);
-      SDL_RenderDebugText(renderer, 10, y, line);
+      SDL_RenderDebugText(renderer, kx, y, line);
       y += lineH;
-      SDL_RenderDebugText(renderer, 10, y, "? or escape closes this");
+      SDL_RenderDebugText(renderer, kx, y, "? or escape closes this");
 
       SDL_SetRenderScale(renderer, 1.0f, 1.0f);
       SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     }
 
+    if (panelOpen)
+      ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
+
     SDL_RenderPresent(renderer);
+
+    // Acted on after presenting, so a rebuild happens once per frame however
+    // many widgets a drag touched.
+    if (panel.selectPackage >= 0 &&
+        (size_t)panel.selectPackage != index) {
+      index = (size_t)panel.selectPackage;
+      // Same as stepping with [ or ]: the overlay goes, so the newly chosen
+      // package is read from its own file rather than through the last edit.
+      FFat.clearOverlays();
+      openDocument(index);
+      host.load(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink);
+    } else if (panel.revertRequested) {
+      FFat.clearOverlays();
+      openDocument(index);
+      host.reload(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink,
+                  mouseGaze || opt.gazeFixed);
+    } else if (panel.configChanged && applyDocument(index)) {
+      host.reload(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink,
+                  mouseGaze || opt.gazeFixed);
+    }
+
+    if (panel.saveRequested) {
+      const std::string fromDir = opt.assetRoot + "/eyes/" +
+                                  packages[index].id;
+      const std::string toDir = opt.assetRoot + "/eyes/" + panel.saveAsId;
+      std::string error;
+      if (!copyPackageAssets(fromDir, toDir, &error)) {
+        panelState.message = error;
+        panelState.messageIsError = true;
+      } else {
+        const std::string configPath = toDir + "/config.eye";
+        FILE *f = fopen(configPath.c_str(), "wb");
+        const std::string json = doc.serialise();
+        if (f && fwrite(json.data(), 1, json.size(), f) == json.size()) {
+          fclose(f);
+          doc.clearDirty();
+          panelState.message = "Saved as " + panel.saveAsId;
+          panelState.messageIsError = false;
+          // Make it selectable with [ and ] straight away.
+          packages = findPackages(opt.assetRoot);
+          FFat.clearOverlays();
+          for (size_t i = 0; i < packages.size(); ++i)
+            if (packages[i].id == panel.saveAsId)
+              index = i;
+          panelState.saveAsId[0] = 0;
+        } else {
+          if (f)
+            fclose(f);
+          panelState.message = "Could not write config.eye";
+          panelState.messageIsError = true;
+        }
+      }
+    }
 
     if (frameNs) {
       const uint64_t now = SDL_GetTicksNS();
@@ -693,6 +915,10 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
         nextFrameNs = now; // Fell behind; do not try to catch up in a burst
     }
   }
+
+  ImGui_ImplSDLRenderer3_Shutdown();
+  ImGui_ImplSDL3_Shutdown();
+  ImGui::DestroyContext();
 
   SDL_DestroyTexture(texture);
   SDL_DestroyRenderer(renderer);

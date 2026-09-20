@@ -43,15 +43,33 @@ if(NOT SDL3_FOUND)
         "preview window.")
 endif()
 
+set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui)
+
 add_executable(eye-sim
     src/main.cpp
     src/capture.cpp
+    src/package_io.cpp
     shim/Arduino.cpp
     shim/FFat.cpp
     ${EYES_LIB_DIR}/Adafruit_Monster_Eyes.cpp
     ${EYES_LIB_DIR}/Eyes_Assets.cpp
     ${EYES_LIB_DIR}/Eyes_Display.cpp
 )
+
+# The config panel and Dear ImGui are only built when there is a window to put
+# them in; a headless build has no use for either.
+if(SDL3_FOUND)
+    target_sources(eye-sim PRIVATE
+        src/config_panel.cpp
+        ${IMGUI_DIR}/imgui.cpp
+        ${IMGUI_DIR}/imgui_draw.cpp
+        ${IMGUI_DIR}/imgui_tables.cpp
+        ${IMGUI_DIR}/imgui_widgets.cpp
+        ${IMGUI_DIR}/backends/imgui_impl_sdl3.cpp
+        ${IMGUI_DIR}/backends/imgui_impl_sdlrenderer3.cpp
+    )
+    target_include_directories(eye-sim PRIVATE ${IMGUI_DIR} ${IMGUI_DIR}/backends)
+endif()
 
 target_include_directories(eye-sim PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/shim
@@ -86,6 +104,12 @@ set_source_files_properties(
     ${EYES_LIB_DIR}/Adafruit_Monster_Eyes.cpp
     ${EYES_LIB_DIR}/Eyes_Assets.cpp
     ${EYES_LIB_DIR}/Eyes_Display.cpp
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_sdl3.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_sdlrenderer3.cpp
     PROPERTIES COMPILE_OPTIONS "-w")
 
 target_compile_options(eye-sim PRIVATE -Wall -Wextra)

@@ -280,8 +280,17 @@ cmake --build projects/monster-eyes-port/sim/build -j
 cd projects/monster-eyes-port && ./sim/build/eye-sim --eye deer
 ```
 
-Needs `cmake`, `g++`, `zlib1g-dev` and, for the window, `libsdl3-dev`. See
-`sim/README.md` for the keys, the capture options and what the shim covers.
+`--panel` (or `p` in the window) opens a live `config.eye` editor to the right of
+the display, with a style drop-down and a help strip under the preview: move a
+slider and the eye changes as you watch. The edited config
+is served to the renderer from memory rather than written out, so nothing under
+`data/` is touched and no scratch files exist; Save writes a new package,
+copying the bitmaps and preserving keys the renderer does not parse, such as
+`extensions`.
+
+Needs `cmake`, `g++`, `zlib1g-dev` and, for the window, `libsdl3-dev`. Dear
+ImGui is vendored under `sim/third_party/`. See `sim/README.md` for the keys,
+the capture options and what the shim covers.
 
 ## Migration validation
 

@@ -24,6 +24,7 @@ on screen here is the pixel the device would light.
 | A C++17 compiler | `g++` | Tested with GCC 15 |
 | zlib | `zlib1g-dev` | Deflating the capture PNGs |
 | SDL3 | `libsdl3-dev` | The preview window; optional |
+| Dear ImGui | vendored, `third_party/imgui` | The config editor's widgets |
 | ArduinoJson 7.x | fetched by PlatformIO | Parsing `config.eye` |
 
 ```sh
@@ -34,6 +35,11 @@ SDL3 is optional. Without it the build still succeeds and headless capture
 still works; only the window is missing, and CMake says so rather than failing.
 libpng is deliberately not a dependency: the PNG writer in `src/capture.cpp`
 emits the format directly through zlib, which everything already has.
+
+Dear ImGui v1.92.9b is vendored under `third_party/imgui` (MIT; see
+`VENDORED.md` there for the exact commit). Only the core sources and the SDL3
+backends are included. It is compiled only when SDL3 is found, so a headless
+build does not touch it.
 
 ArduinoJson is header-only and builds natively, so the simulator parses
 `config.eye` with the real parser rather than a lookalike. CMake finds the copy
@@ -71,6 +77,7 @@ Paths are relative to `projects/monster-eyes-port`, since `--assets` defaults to
 | `r` | Reload `config.eye` from disk |
 | `c` | Capture 8 frames to `eye-capture-*` |
 | tab | Toggle the status overlay |
+| `p` | Toggle the config.eye editor |
 | `?` | Show the key list over the eye |
 | `q`, escape | Quit |
 
@@ -82,6 +89,80 @@ generated from the same table in `src/main.cpp`, so they cannot drift apart.
 and the texture budget are all derived from the config being reread, so there is
 no honest way to change one in place. Edit `data/eyes/<id>/config.eye`, press
 `r`, and the result is on screen.
+
+## The config.eye editor
+
+`--panel`, or `p` in the window, opens an editor to the right of the display and
+a help strip beneath it. Move a slider and the eye changes as you look at it.
+The eye stays where it is and keeps its integer scale; the window simply grows
+right and down to make room.
+
+```sh
+./sim/build/eye-sim --eye hazel --panel
+./sim/build/eye-sim --eye hazel --panel --panel-width 460
+```
+
+It covers geometry and pupil, colours, and motion and iris flow. Texture paths
+and the per-eye `left`/`right` blocks are not exposed; edit those in the file.
+
+The package being edited is a drop-down at the top of the panel, so any style is
+one click away; `[` and `]` still step through them one at a time. Switching
+discards unsaved edits, as `r` does.
+
+Hovering a control explains it in a strip along the bottom of the preview, not
+in a tooltip at the pointer: a tooltip does not wrap, so anything long enough to
+be useful runs off the edge of the screen. The strip is as wide as the eye, so a
+sentence takes a line or two rather than five, and the panel keeps that space
+for controls. The window grows downward to make room, so the preview itself is
+never covered.
+
+**Nothing is written anywhere until you press Save.** The renderer has no way to
+take settings other than by reading a config.eye — `begin()` parses the file and
+sizes the polar maps and textures from it, and any setter called beforehand is
+overwritten by the parse — so applying a slider means producing a config.eye and
+rebuilding.
+
+That file never exists on disk. `FFat` is part of the shim, so it can serve a
+path from memory: the editor hands it the serialised document, and the next
+`begin()` parses it through `fmemopen()` without anything touching the
+filesystem. Only the config is shadowed, so the bitmaps still load from `data/`
+as usual, and clearing the overlay — on `r`, on a package change, or on Revert —
+hands the real file straight back. There is no scratch directory and nothing to
+clean up.
+
+### Config space, not screen space
+
+The panel edits what the file means, which is not what the renderer ends up
+using. `begin()` rescales `eyeRadius`, `irisRadius`, `slitPupilRadius` and
+`fixate` from the config's own coordinate space into the actual eye size — a
+config saying `eyeRadius: 125` with no `displaySize` is read as a 240px space
+and becomes 53 on a 128px eye. So the panel shows 125, and a value the file
+omits falls back to the library's default rather than to whatever the running
+renderer settled on. Showing the fitted number would be wrong twice over: it is
+not what the file says, and touching the control would write it back, baking one
+display's scaling into the package.
+
+### Saving
+
+Type a name and press Save. That writes `data/eyes/<name>/config.eye` and copies
+the bitmaps beside it, so the result is a complete package that loads like any
+other; it appears in `[` / `]` straight away. An existing name is refused rather
+than overwritten, and the package you started from is never modified. **Revert
+to file** throws the edits away and rereads the original.
+
+The saved JSON is the original document with the edited keys replaced, so
+`extensions` — the block carrying the device's audio — and any other key the
+renderer does not parse survive untouched. Two things do not survive: comments,
+because the JSON parser does not preserve them, and key order, which is
+rewritten. Colours are written as `"0xF800"` strings, which round-trip exactly;
+an `[r, g, b]` array cannot represent every RGB565 value.
+
+Applying an edit rebuilds the renderer, since the polar maps and texture budget
+are sized from the config. The gaze, blink phase and iris dilation are carried
+across, so the eye keeps looking where it was instead of re-centring on every
+slider movement. A rebuild costs under a millisecond and does not accumulate
+memory — 2000 edit-and-rebuild cycles move RSS by about 140 KiB, the same as
+200, which is the allocator settling rather than a leak.
 
 ## Capturing frames for an agent
 
@@ -223,7 +304,8 @@ that code.
 `FFat` is the one that does real work. It resolves the device's absolute paths
 (`/eyes/deer/config.eye`) against `--assets`, and refuses a path that tries to
 climb out of that root with `..`, so a hostile config cannot read arbitrary
-files.
+files. It can also serve a path from memory, which is how the editor applies a
+change without writing a file.
 
 Heap figures are fiction: the shim reports 8 MB free, so the texture loader
 never decimates and the preview shows the eye at full resolution. That is

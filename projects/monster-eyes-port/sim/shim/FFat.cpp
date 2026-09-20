@@ -30,6 +30,22 @@ bool HostFFatFS::begin(bool formatOnFail) {
   return true;
 }
 
+std::string HostFFatFS::normalise(const char *path) {
+  if (!path)
+    return std::string();
+  while (*path == '/')
+    ++path;
+  return std::string(path);
+}
+
+void HostFFatFS::setOverlay(const char *path, const std::string &content) {
+  _overlay[normalise(path)] = content;
+}
+
+void HostFFatFS::clearOverlay(const char *path) {
+  _overlay.erase(normalise(path));
+}
+
 // A config file naming "../../etc/passwd" as its iris texture should fail to
 // open rather than succeed, so the join walks the path and refuses to let the
 // depth go negative. Cheaper and clearer than realpath(), and it does not
@@ -39,9 +55,18 @@ File HostFFatFS::open(const char *path, const char *mode) {
   if (!path)
     return File();
 
-  const char *p = path;
-  while (*p == '/')
-    ++p;
+  const std::string key = normalise(path);
+
+  // An overlaid path never reaches the filesystem. fmemopen gives a FILE* over
+  // the stored bytes, so File needs no notion of where its content came from.
+  // The map owns the string and nothing erases an entry while a file is open,
+  // so the pointer stays good for the life of the handle.
+  const std::map<std::string, std::string>::iterator it = _overlay.find(key);
+  if (it != _overlay.end())
+    return File(fmemopen(const_cast<char *>(it->second.data()),
+                         it->second.size(), "rb"));
+
+  const char *p = key.c_str();
 
   int depth = 0;
   for (const char *seg = p; *seg;) {

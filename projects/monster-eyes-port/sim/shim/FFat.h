@@ -11,12 +11,22 @@
  * Paths are absolute on the device ("/eyes/deer/config.eye"). Here they are
  * resolved against a root directory, and a path that tries to climb out of that
  * root with ".." is refused rather than followed.
+ *
+ * A path may also be OVERLAID with content held in memory, which is how the
+ * config editor applies a change. The renderer will only take settings from a
+ * file it parses itself, so every edit has to arrive as a config.eye; serving
+ * that from memory means the asset tree on disk is never written to and no
+ * scratch copy of it exists anywhere. An overlaid path shadows the file of the
+ * same name; everything else still comes off disk as usual.
  */
 
 #ifndef _HOST_FFAT_H_
 #define _HOST_FFAT_H_
 
 #include "Arduino.h"
+
+#include <map>
+#include <string>
 
 /** Open mode; the simulator never writes, so only reading is offered. */
 #define FILE_READ "r"
@@ -161,7 +171,7 @@ public:
   bool begin(bool formatOnFail = false);
 
   /**
-   * @brief Open a file below the root.
+   * @brief Open a file below the root, or its in-memory overlay.
    * @param path Device-absolute path, e.g. "/eyes/deer/config.eye".
    * @param mode Ignored; reading only.
    * @return An open File, or a closed one if the path is missing or escapes
@@ -169,11 +179,32 @@ public:
    */
   File open(const char *path, const char *mode = FILE_READ);
 
+  /**
+   * @brief Serve @p path from memory instead of from disk.
+   *
+   * The content is copied and held until it is replaced or cleared, so the
+   * caller need not keep its own copy alive.
+   *
+   * @param path    Device-absolute path to shadow.
+   * @param content Bytes to serve.
+   */
+  void setOverlay(const char *path, const std::string &content);
+
+  /** @brief Stop shadowing @p path. @param path Device-absolute path. */
+  void clearOverlay(const char *path);
+
+  /** @brief Stop shadowing everything. */
+  void clearOverlays(void) { _overlay.clear(); }
+
   /** @brief The directory standing in for flash. @return Root path. */
   const char *root(void) const { return _root; }
 
 private:
+  /** @brief Strip leading slashes so overlay keys and lookups agree. */
+  static std::string normalise(const char *path);
+
   char _root[1024] = "."; ///< Directory the device paths resolve against
+  std::map<std::string, std::string> _overlay; ///< Paths served from memory
 };
 
 extern HostFFatFS FFat; ///< Stands in for the core's FFat object
