@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <Preferences.h>
 #include <TFT_eSPI.h>
 #include <esp_sleep.h>
 #include "composite_tft_display.h"
@@ -25,7 +26,9 @@ uint32_t nextBatterySample = 0;
 WebControl web(monster, audio, batteryPercent, backlight);
 bool controlsVisible = false;
 bool controlsDirty = false;
-bool flipped = false;
+// Which way up the toy is held. Defaults to flipped, which is the way it is
+// actually used; the panel's rotation 1 is upside down in the case.
+bool flipped = true;
 uint32_t controlsUntil = 0;
 bool backgroundPending = true;
 uint8_t lastRenderedStyle = 0xFF;
@@ -33,6 +36,43 @@ bool lastWifiConnected = false;
 bool lastProvisioning = false;
 bool lastMuted = false;
 bool lastWifiEnabled = true;
+
+namespace {
+
+// Kept in NVS beside the style and audio settings. The flip describes how the
+// hardware is being held rather than a passing choice, so a reboot turning the
+// picture upside down is a bug, not a reset to a sensible default.
+constexpr char kPrefsNamespace[] = "monster-eyes";
+constexpr char kFlipKey[] = "flipped";
+
+void applyFlip(bool value) {
+    flipped = value;
+    display.setRotation(flipped ? 3 : 1);
+    touch.setFlipped(flipped);
+}
+
+bool loadFlip() {
+    Preferences p;
+    p.begin(kPrefsNamespace, true);
+    const bool stored = p.isKey(kFlipKey);
+    const bool value = p.getBool(kFlipKey, true);
+    p.end();
+    // Worth a line: the flip cannot be seen in a screenshot, because the
+    // capture mirror is filled in panel coordinates before TFT_eSPI applies
+    // the rotation, so this is the only way to tell from off the toy.
+    Serial.printf("flip: %s (%s)\n", value ? "on" : "off",
+                  stored ? "stored" : "default");
+    return value;
+}
+
+void storeFlip(bool value) {
+    Preferences p;
+    p.begin(kPrefsNamespace, false);
+    p.putBool(kFlipKey, value);
+    p.end();
+}
+
+}  // namespace
 
 void drawSoundIcon(int x, int y) {
     uint16_t color = audio.hasSound() ? TFT_WHITE : TFT_LIGHTGREY;
@@ -192,7 +232,7 @@ void setup() {
     pinMode(TFT_BL, OUTPUT);
     digitalWrite(TFT_BL, HIGH);
     display.init();
-    display.setRotation(1);
+    applyFlip(loadFlip());
     // Monster Eyes produces native-endian RGB565 words. TFT_eSPI's pushImage()
     // needs byte swapping enabled before sending those words over SPI.
     display.setSwapBytes(true);
@@ -262,9 +302,8 @@ void loop() {
                     monster.nextStyle();
                     web.manualStyleSelected();
                 } else {
-                    flipped = !flipped;
-                    display.setRotation(flipped ? 3 : 1);
-                    touch.setFlipped(flipped);
+                    applyFlip(!flipped);
+                    storeFlip(flipped);
                     display.fillScreen(monster.screenBackground());
                 }
                 backgroundPending = true;
