@@ -65,6 +65,24 @@ Paths are relative to `projects/monster-eyes-port`, since `--assets` defaults to
 ./sim/build/eye-sim --eye deer --scale 4
 ```
 
+### Overriding settings
+
+`--set KEY=VALUE`, repeatable, changes any `config.eye` setting without editing
+the package. Dotted keys reach into a block:
+
+```sh
+./sim/build/eye-sim --eye anime --set irisFlow=0.203 --set squint=0
+./sim/build/eye-sim --eye hazel --set extensions.display.singleEye=true
+./sim/build/eye-sim --eye cat --set irisColor=0xF800 --gif /tmp/cat.gif
+```
+
+The value is typed the way the file would spell it: `true` and `false` become
+booleans, `0x`-prefixed values stay strings so the renderer's colour decoder
+sees them as it would in a file, anything numeric becomes a number. The edit
+goes through the same in-memory overlay the panel uses, so the package on disk
+is only ever read, and the renderer parses a `config.eye` itself rather than
+having values poked in behind it. This covers every setting the panel exposes.
+
 ### Keys
 
 | Key | Action |

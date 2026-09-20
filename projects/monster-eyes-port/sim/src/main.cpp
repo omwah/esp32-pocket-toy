@@ -37,6 +37,7 @@
 #include <vector>
 
 #ifndef SIM_HEADLESS_ONLY
+#include "config_doc.h"
 #include "config_panel.h"
 #include "image_doc.h"
 #include "image_editor.h"
@@ -75,6 +76,7 @@ struct Options {
   bool autoGazeSet = false;       ///< --no-auto-gaze was given
   bool autoBlinkSet = false;      ///< --no-auto-blink was given
   bool autoGaze = true;           ///< Let the gaze animator run
+  std::vector<std::pair<std::string, std::string>> sets; ///< --set key=value
   std::string gifPath;            ///< --gif destination, empty for none
   int gifSearch = 900;            ///< Frames to search for a loop
   float gifSeconds = 6.0f;        ///< Longest loop to accept, in seconds
@@ -395,6 +397,11 @@ void usage(const char *argv0) {
       "  --assets DIR     Directory standing in for the device filesystem,\n"
       "                   containing eyes/<id>/config.eye (default: data)\n"
       "  --eye ID         Package to start on (default: the first found)\n"
+      "  --set KEY=VALUE  Override a config.eye setting, repeatable. Any key\n"
+      "                   the file may hold, dotted to reach into a block:\n"
+      "                   --set irisFlow=0.203 --set squint=0\n"
+      "                   --set extensions.display.singleEye=true\n"
+      "                   The package on disk is not touched\n"
       "  --list           Print the packages found and exit\n"
       "  --scale N        Window pixels per panel pixel (default: 3)\n"
       "  --panel          Open the config.eye editor beside the display\n"
@@ -480,6 +487,14 @@ bool parseArgs(int argc, char **argv, Options &opt, bool &list) {
       opt.assetRoot = value();
     } else if (!strcmp(a, "--eye")) {
       opt.eyeId = value();
+    } else if (!strcmp(a, "--set")) {
+      const std::string kv = value();
+      const size_t eq = kv.find('=');
+      if (eq == std::string::npos || eq == 0) {
+        fprintf(stderr, "--set wants KEY=VALUE, got '%s'\n", kv.c_str());
+        return false;
+      }
+      opt.sets.push_back({kv.substr(0, eq), kv.substr(eq + 1)});
     } else if (!strcmp(a, "--out")) {
       opt.outPrefix = value();
     } else if (!strcmp(a, "--scale")) {
@@ -1549,6 +1564,31 @@ int main(int argc, char **argv) {
   // The library reaches the assets through FFat, exactly as it does on the
   // device; all that changes is which directory the device paths resolve to.
   FFat.setRoot(opt.assetRoot.c_str());
+
+  // --set edits the config the same way the panel does: the document is
+  // parsed, changed, and served back through the overlay. The package on disk
+  // is only ever read, and the renderer sees a config.eye it parses itself
+  // rather than a set of values poked in behind its back.
+  std::string overriddenConfig;
+  if (!opt.sets.empty()) {
+    ConfigDocument doc;
+    const std::string hostPath =
+        opt.assetRoot + "/eyes/" + packages[index].id + "/config.eye";
+    if (!doc.load(hostPath)) {
+      fprintf(stderr, "Could not read %s to apply --set\n", hostPath.c_str());
+      return 1;
+    }
+    for (const auto &kv : opt.sets) {
+      std::string error;
+      if (!doc.setPath(kv.first, kv.second, &error)) {
+        fprintf(stderr, "--set %s=%s: %s\n", kv.first.c_str(),
+                kv.second.c_str(), error.c_str());
+        return 1;
+      }
+    }
+    overriddenConfig = doc.serialise();
+    FFat.setOverlay(packages[index].config.c_str(), overriddenConfig);
+  }
 
   LinuxDisplay display;
   EyeHost host(display);
