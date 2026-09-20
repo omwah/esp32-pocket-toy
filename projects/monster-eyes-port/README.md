@@ -266,6 +266,40 @@ What it captures is the two eyes and the background they sit on. The status
 icons and the touch controls are drawn straight to the TFT by the sketch, so
 they never pass through the backend and are not in the picture.
 
+## One big eye instead of two
+
+A package can ask for a single eye filling the panel rather than the usual
+pair:
+
+```json
+{
+  "extensions": {
+    "display": {
+      "singleEye": true,
+      "side": "right"
+    }
+  }
+}
+```
+
+Two 128px eyes sit side by side on the 320x240 panel; one eye instead takes the
+panel's short side, 240px, centred — about twice the lit area. `side` picks
+which eye it is, `"left"` or `"right"`, and decides which of the config's `left`
+and `right` blocks applies; it defaults to the left.
+
+The renderer asks the display backend to rearrange itself once the config has
+been read, since how many eyes there are is a property of the package rather
+than of the sketch that built the backend. A backend that cannot oblige keeps
+the pair and says so in the startup log, so a package asking for this still runs
+on hardware that cannot do it. The sketch keeps one backend across style
+changes, so switching from a single-eye package back to an ordinary one puts the
+pair back.
+
+Because the eye is nearly twice the size, its polar maps are roughly four times
+the area. `begin()` already steps the eye size down when the tables or the
+texture budget will not fit, so on a constrained board a single eye simply comes
+out smaller rather than failing.
+
 ## Holding the eye still
 
 A package can switch off either autonomous behaviour from its `config.eye`,

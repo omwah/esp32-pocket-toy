@@ -35,6 +35,18 @@ public:
 
   LinuxDisplay() : Eyes_StripeDisplay(2, 16) {}
 
+  // Mirrors CompositeTftDisplay: a package may ask for one eye filling the
+  // panel instead of two side by side.
+  bool setEyeCount(uint8_t eyes) override {
+    if (eyes != 1 && eyes != 2)
+      return false;
+    if (eyes != _numEyes) {
+      _numEyes = eyes;
+      _panelW = 0; // Ask panelSize() again; the layout differs
+    }
+    return true;
+  }
+
   ~LinuxDisplay() override { free(_fb); }
 
   bool begin(void) override {
@@ -60,6 +72,11 @@ protected:
   // The logical size one eye may occupy; where it physically lands is decided
   // per eye in flushStripe(), exactly as the device backend does it.
   void panelSize(int *width, int *height) override {
+    if (_numEyes == 1) {
+      *width = PANEL_W;
+      *height = PANEL_H;
+      return;
+    }
     *width = 128;
     *height = 128;
   }
@@ -67,12 +84,13 @@ protected:
   void flushStripe(int eye, int x0, int width, uint16_t *pixels) override {
     if (!_fb)
       return;
-    const int x = eyeX(eye & 1) + x0;
+    const int x = (_numEyes == 1) ? originX() + x0 : eyeX(eye & 1) + x0;
+    const int y0 = (_numEyes == 1) ? originY() : EYE_Y;
     // Row-major, `width` pixels per row, top row first -- the layout
     // TFT_eSPI::pushImage() expects, so the copy here is the same copy the
     // device makes into its capture mirror.
     for (int row = 0; row < eyeSize(); ++row)
-      memcpy(&_fb[(size_t)(EYE_Y + row) * PANEL_W + x],
+      memcpy(&_fb[(size_t)(y0 + row) * PANEL_W + x],
              &pixels[(size_t)row * width], (size_t)width * sizeof(uint16_t));
   }
 

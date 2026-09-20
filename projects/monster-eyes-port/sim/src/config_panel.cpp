@@ -126,6 +126,20 @@ void ConfigDocument::setExtBool(const char *feature, const char *key,
   _dirty = true;
 }
 
+std::string ConfigDocument::getExtString(const char *feature, const char *key,
+                                         const char *inForce) const {
+  JsonVariantConst v = _impl->doc["extensions"][feature][key];
+  if (v.is<const char *>())
+    return v.as<const char *>();
+  return inForce ? inForce : "";
+}
+
+void ConfigDocument::setExtString(const char *feature, const char *key,
+                                  const char *value) {
+  _impl->doc["extensions"][feature][key] = value;
+  _dirty = true;
+}
+
 // Mirrors the library's own dwim() decoder, so the panel reads a colour the
 // same way the renderer will. Kept in step by hand; the alternative is
 // exporting dwim() from the library, which would mean changing it.
@@ -378,6 +392,34 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
                        "Round the ends of the slit." EXTENSION_NOTE);
   }
 
+  if (ImGui::CollapsingHeader("Display", ImGuiTreeNodeFlags_DefaultOpen)) {
+    sectionNote("How many eyes the panel shows.");
+    const bool wasSingle = doc.getExtBool("display", "singleEye", false);
+    bool single = wasSingle;
+    if (ImGui::Checkbox("singleEye*", &single)) {
+      doc.setExtBool("display", "singleEye", single);
+      changed = true;
+    }
+    noteHelp("One eye filling the panel, 240px centred, instead of two 128px "
+             "eyes side by side. The eye is rebuilt, so its textures reload "
+             "at the new size." EXTENSION_NOTE);
+
+    // Which side only means anything with one eye, and it picks which of the
+    // config's left and right blocks applies.
+    ImGui::BeginDisabled(!single);
+    const std::string side = doc.getExtString("display", "side", "left");
+    const bool isRight = !side.empty() && (side[0] == 'r' || side[0] == 'R');
+    int sideIndex = isRight ? 1 : 0;
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 6.0f);
+    if (ImGui::Combo("side*", &sideIndex, "left\0right\0")) {
+      doc.setExtString("display", "side", sideIndex ? "right" : "left");
+      changed = true;
+    }
+    ImGui::EndDisabled();
+    noteHelp("Which eye the single one is, and so which of the config's left "
+             "and right blocks applies to it." EXTENSION_NOTE);
+  }
+
   if (ImGui::CollapsingHeader("Colours", ImGuiTreeNodeFlags_DefaultOpen)) {
     sectionNote("Used where a texture is missing.");
     changed |= colorRow(doc, "irisColor", "irisColor", now.irisColor,
@@ -455,6 +497,7 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
                         "How many crests sit between the pupil and the "
                         "rim." EXTENSION_NOTE);
   }
+
 
   ImGui::PopItemWidth();
   ImGui::EndChild();

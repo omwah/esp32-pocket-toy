@@ -24,6 +24,21 @@ public:
     explicit CompositeTftDisplay(TFT_eSPI &tft)
         : Eyes_StripeDisplay(2, 16), _tft(tft) {}
 
+    // A package may ask for one eye filling the panel instead of two side by
+    // side (extensions.display.singleEye). Only the layout changes: one eye is
+    // as large as the panel's short side and centred, rather than two 128px
+    // squares at fixed offsets.
+    bool setEyeCount(uint8_t eyes) override {
+        if (eyes != 1 && eyes != 2) return false;
+        if (eyes != _numEyes) {
+            _numEyes = eyes;
+            // Force panelSize() to be asked again: the logical panel differs
+            // between the two layouts.
+            _panelW = 0;
+        }
+        return true;
+    }
+
     ~CompositeTftDisplay() {
         if (_mirror) free(_mirror);
     }
@@ -64,6 +79,13 @@ public:
 
 protected:
     void panelSize(int *width, int *height) override {
+        if (_numEyes == 1) {
+            // The whole panel, so the base class sizes the eye to the short
+            // side and centres it for us.
+            *width = PANEL_W;
+            *height = PANEL_H;
+            return;
+        }
         // Report the logical size available to one eye. Physical placement is
         // handled per-eye in flushStripe().
         *width = 128;
@@ -71,8 +93,10 @@ protected:
     }
 
     void flushStripe(int eye, int x0, int width, uint16_t *pixels) override {
-        const int x = eyeX(eye & 1) + x0;
-        const int y = EYE_Y;
+        // With one eye the base class has already centred it, so use the
+        // origin it worked out rather than the two-eye offsets.
+        const int x = (_numEyes == 1) ? originX() + x0 : eyeX(eye & 1) + x0;
+        const int y = (_numEyes == 1) ? originY() : EYE_Y;
         _tft.pushImage(x, y, width, eyeSize(), pixels);
         if (!_capturing || !_mirror) return;
         // The stripe is row-major, `width` pixels per row, exactly as

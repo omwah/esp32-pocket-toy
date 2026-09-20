@@ -103,7 +103,8 @@ right and down to make room.
 ./sim/build/eye-sim --eye hazel --panel --panel-width 460
 ```
 
-It is grouped as geometry and pupil, colours, animation, rotation and iris flow.
+It is grouped as geometry and pupil, display, colours, animation, rotation and
+iris flow.
 Texture paths and the per-eye `left`/`right` blocks are not exposed; edit those
 in the file.
 
@@ -293,6 +294,16 @@ trust the table above over the header.** The library is left unmodified.
 
 Capture sidecars record both: `gazeScreen` is what you see, `gazeLibrary` is
 what the library holds.
+
+### One eye or two
+
+The panel's **Display** section has `singleEye` and `side`, so this can be tried
+without hand-editing the file. A package that sets `extensions.display.singleEye`
+gets one eye filling the panel — 240px centred, against two 128px eyes side by side — and the preview
+shows it exactly as the device would, because the layout lives in the display
+backend and both backends implement it the same way. `side` picks which eye it
+is. Captures are of the whole 320x240 panel either way, so nothing about the
+capture options changes.
 
 ### Frame rate
 

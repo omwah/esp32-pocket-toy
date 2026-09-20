@@ -536,6 +536,11 @@ static int32_t dwim(JsonVariantConst v, int32_t def = 0) {
 // both open the same file, so this stays correct on the layout upstream
 // expects rather than being an ESP32 special case.
 static void copyAssetPath(char *dst, JsonVariantConst v, const char *configFile) {
+  // An absent key leaves what is already there, as every other setting does.
+  // This matters for a single eye, where the side block is applied over the
+  // root: an empty "left": {} would otherwise wipe every texture the root had
+  // just named.
+  if (v.isNull()) return;
   dst[0] = 0;
   if (!v.is<const char *>()) return;
   const char *asset = v.as<const char *>();
@@ -573,6 +578,41 @@ void Adafruit_Monster_Eyes::applyConfigExtensions(const void *variantPtr) {
   if (o.isNull())
     return;
   JsonVariantConst animation = o["extensions"]["animation"];
+
+  JsonVariantConst display = o["extensions"]["display"];
+  if (!display.isNull()) {
+    // One eye filling the panel rather than two side by side. The backend
+    // rearranges itself; one that cannot simply keeps the pair, so a package
+    // asking for this on hardware that cannot do it still runs.
+    JsonVariantConst v = display["singleEye"];
+    if (v.is<bool>() || v.is<int>())
+      _singleEye = v.as<bool>();
+
+    // Which eye a single one is. M4_Eyes numbers eye 0 as the character's
+    // right, which is the viewer's left, and the side decides which of the
+    // left and right config blocks applies.
+    v = display["side"];
+    if (v.is<const char *>()) {
+      const char *side = v.as<const char *>();
+      if (side && (side[0] == 'l' || side[0] == 'L'))
+        setSide(false);
+      else if (side && (side[0] == 'r' || side[0] == 'R'))
+        setSide(true);
+    }
+  }
+
+  if (_display) {
+    // Always told, not only when single: the sketch keeps one backend across
+    // style changes, so a package that says nothing has to put back the pair a
+    // previous package may have taken away.
+    _display->setEyeCount(_singleEye ? 1 : 2);
+    _numEyes = _display->eyeCount();
+    // The startup banner prints the eye count before the config is read, so
+    // say it again here where it is settled.
+    EYES_DBG("Display: %d eye(s)%s\n", _numEyes,
+             (_singleEye && _numEyes != 1) ? " (backend cannot show one)" : "");
+  }
+
   if (animation.isNull())
     return;
 
@@ -747,8 +787,11 @@ bool Adafruit_Monster_Eyes::loadConfig(const char *path) {
   }
 
   JsonVariantConst root = doc.as<JsonVariantConst>();
-  applyConfigRoot(&root);
+  // Before applyConfigRoot(), not after: extensions.display decides how many
+  // eyes there are, and that changes what the rest of the parse means -- which
+  // side's block applies, and whether the spin of eye 0 is mirrored.
   applyConfigExtensions(&root);
+  applyConfigRoot(&root);
   if (_numEyes == 1) {
     // A single eye may take anything from its side's block, including geometry.
     JsonVariantConst side = doc[_sideRight ? "right" : "left"];

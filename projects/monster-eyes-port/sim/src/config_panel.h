@@ -105,6 +105,22 @@ public:
    */
   void setExtBool(const char *feature, const char *key, bool value);
   /**
+   * @brief Read a string out of extensions.<feature>.
+   * @param feature Extension block name.
+   * @param key     Key within it.
+   * @param inForce Fallback when the file does not say.
+   * @return Value.
+   */
+  std::string getExtString(const char *feature, const char *key,
+                           const char *inForce) const;
+  /**
+   * @brief Write a string into extensions.<feature>, creating both if needed.
+   * @param feature Extension block name.
+   * @param key     Key within it.
+   * @param value   Value.
+   */
+  void setExtString(const char *feature, const char *key, const char *value);
+  /**
    * @brief Read a colour key as native-endian RGB565.
    *
    * Accepts everything config.eye may hold: a number, a "0xF800" string, or an

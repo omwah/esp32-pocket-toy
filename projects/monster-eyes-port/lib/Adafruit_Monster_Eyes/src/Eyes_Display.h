@@ -147,6 +147,26 @@ public:
   /** @brief Eyes this backend can show. @return 1 or 2. */
   uint8_t eyeCount(void) const { return _numEyes; }
 
+  /**
+   * @brief Ask the backend to drive a different number of eyes.
+   *
+   * Called from begin() once the config has been read, because whether a
+   * package wants one big eye or two small ones is a property of the package
+   * rather than of the sketch that constructed the backend. A backend that
+   * cannot rearrange itself returns false and keeps the count it had.
+   *
+   * Implementations must invalidate any cached panel geometry, since the
+   * layout changes with the count; the eye size and stripe buffers are set up
+   * afterwards by setEyeSize() and need no special handling here.
+   *
+   * @param eyes 1 or 2.
+   * @return true if the backend now drives that many.
+   */
+  virtual bool setEyeCount(uint8_t eyes) {
+    (void)eyes;
+    return false;
+  }
+
   /** @brief Current eye size in pixels. @return Size, or 0 before setEyeSize().
    */
   int eyeSize(void) const { return _eyeSize; }
