@@ -10,7 +10,7 @@
   // An upright pointed slit, as a cat's is, which is the shape the pupil
   // holds in every frame of the reference. slitPupilRadius is measured along
   // the slit, so this is half the pupil's height.
-  "slitPupilRadius": 27,
+  "slitPupilRadius": 80,
   "slitPupilHorizontal": false,
   "slitPupilRounded": false,
   // A narrow range, and a slow one: the fire breathes in and out a little
@@ -50,6 +50,14 @@
   // nothing and the Eye never closes. Tracking only slides the lids, so with
   // no lids it has nothing to do either.
   "tracking": false,
+
+  // One eye filling the panel rather than two side by side. There is only one
+  // Eye of Sauron, and the artwork is worth the whole screen.
+  "extensions": {
+    "display": {
+      "singleEye": true
+    }
+  },
 
   "left": {},
   "right": {}
