@@ -266,6 +266,32 @@ What it captures is the two eyes and the background they sit on. The status
 icons and the touch controls are drawn straight to the TFT by the sketch, so
 they never pass through the backend and are not in the picture.
 
+## Holding the eye still
+
+A package can switch off either autonomous behaviour from its `config.eye`,
+under the `extensions` block the audio settings already live in:
+
+```json
+{
+  "extensions": {
+    "animation": {
+      "autoGaze": false,
+      "autoBlink": false
+    }
+  }
+}
+```
+
+`autoGaze: false` stops the eye wandering, so it holds whatever direction it was
+last pointed; `autoBlink: false` means it never blinks on its own. Both default
+to on, and a key that is absent leaves the behaviour alone, so every existing
+package is unaffected.
+
+This is read by the renderer itself rather than by the sketch, so it applies
+identically on the board and in the Linux preview. Pointing the gaze
+deliberately still works with `autoGaze` off — that is the point of it — and
+`blink()` still blinks an eye whose `autoBlink` is off.
+
 ## Linux preview
 
 `sim/` builds `eye-sim`, a desktop preview that runs this renderer against a

@@ -560,6 +560,33 @@ static void copyAssetPath(char *dst, JsonVariantConst v, const char *configFile)
 }
 
 // Apply one JSON object: the document root, or a per-eye sub-object on top.
+// Extensions are the config's room for things that are not the renderer's
+// geometry: the sketch already reads extensions.audio for its sounds. The
+// animation block is the library's own, and covers the two behaviours a package
+// may reasonably want switched off -- a portrait that should hold your eye
+// without wandering, or a dead stare that should never blink.
+//
+// Both default to on, and a key that is absent leaves the current value alone,
+// so every config written before this existed behaves exactly as it did.
+void Adafruit_Monster_Eyes::applyConfigExtensions(const void *variantPtr) {
+  JsonVariantConst o = *(const JsonVariantConst *)variantPtr;
+  if (o.isNull())
+    return;
+  JsonVariantConst animation = o["extensions"]["animation"];
+  if (animation.isNull())
+    return;
+
+  JsonVariantConst v = animation["autoGaze"];
+  if (v.is<bool>() || v.is<int>())
+    _autoGaze = v.as<bool>();
+  v = animation["autoBlink"];
+  if (v.is<bool>() || v.is<int>())
+    _autoBlink = v.as<bool>();
+
+  EYES_DBG("Animation: autoGaze %s, autoBlink %s\n", _autoGaze ? "on" : "off",
+           _autoBlink ? "on" : "off");
+}
+
 void Adafruit_Monster_Eyes::applyConfigRoot(const void *variantPtr) {
   JsonVariantConst o = *(const JsonVariantConst *)variantPtr;
   if (o.isNull())
@@ -721,6 +748,7 @@ bool Adafruit_Monster_Eyes::loadConfig(const char *path) {
 
   JsonVariantConst root = doc.as<JsonVariantConst>();
   applyConfigRoot(&root);
+  applyConfigExtensions(&root);
   if (_numEyes == 1) {
     // A single eye may take anything from its side's block, including geometry.
     JsonVariantConst side = doc[_sideRight ? "right" : "left"];

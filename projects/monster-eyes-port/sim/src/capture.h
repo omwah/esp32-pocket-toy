@@ -37,6 +37,8 @@ struct FrameState {
   float frameRate;    ///< Frames per second the library reports
   bool autoGaze;      ///< Was the gaze animator driving?
   bool autoBlink;     ///< Was the blink animator driving?
+  // Both come from the renderer, so they reflect extensions.animation in the
+  // config as well as the command line and the g and b keys.
 };
 
 /**
@@ -44,14 +46,11 @@ struct FrameState {
  * @param eyes    The instance to read.
  * @param index   Sequence position.
  * @param eyeName Package name to record.
- * @param autoGaze Whether the gaze animator is on.
- * @param autoBlink Whether the blink animator is on.
  * @param wallMs  Host milliseconds the frame took, measured by the caller.
  * @return The populated state.
  */
 FrameState captureState(Adafruit_Monster_Eyes &eyes, int index,
-                        const char *eyeName, bool autoGaze, bool autoBlink,
-                        float wallMs);
+                        const char *eyeName, float wallMs);
 
 /** @brief Host monotonic clock, for timing a frame.
  *  @return Microseconds; only differences are meaningful. */

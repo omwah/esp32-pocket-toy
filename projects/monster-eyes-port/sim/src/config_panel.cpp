@@ -98,6 +98,25 @@ void ConfigDocument::setBool(const char *key, bool value) {
   _dirty = true;
 }
 
+bool ConfigDocument::getExtBool(const char *feature, const char *key,
+                                bool inForce) const {
+  JsonVariantConst v = _impl->doc["extensions"][feature][key];
+  if (v.is<bool>())
+    return v.as<bool>();
+  if (v.is<int>())
+    return v.as<int>() != 0;
+  return inForce;
+}
+
+// Assigning through the subscripts creates the intermediate objects, so a
+// config with no extensions block at all gains a well-formed one rather than
+// silently dropping the setting.
+void ConfigDocument::setExtBool(const char *feature, const char *key,
+                                bool value) {
+  _impl->doc["extensions"][feature][key] = value;
+  _dirty = true;
+}
+
 // Mirrors the library's own dwim() decoder, so the panel reads a colour the
 // same way the renderer will. Kept in step by hand; the alternative is
 // exporting dwim() from the library, which would mean changing it.
@@ -211,6 +230,18 @@ bool boolRow(ConfigDocument &doc, const char *label, const char *key,
   return changed;
 }
 
+/** @brief A checkbox bound to extensions.<feature>.<key>.
+ *  @return true if it changed. */
+bool extBoolRow(ConfigDocument &doc, const char *label, const char *feature,
+                const char *key, bool inForce, const char *tip = nullptr) {
+  bool value = doc.getExtBool(feature, key, inForce);
+  const bool changed = ImGui::Checkbox(label, &value);
+  if (changed)
+    doc.setExtBool(feature, key, value);
+  noteHelp(tip);
+  return changed;
+}
+
 /** @brief A colour picker bound to a colour key. @return true if it changed. */
 bool colorRow(ConfigDocument &doc, const char *label, const char *key,
               uint16_t inForce, const char *tip = nullptr) {
@@ -284,6 +315,22 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
   // what the running renderer settled on -- see the note in the header.
   const EyesSettings &now = defaults;
   bool changed = false;
+
+  if (ImGui::CollapsingHeader("Animation", ImGuiTreeNodeFlags_DefaultOpen)) {
+    // These live under extensions rather than at the root, alongside the
+    // audio block the sketch reads, because they are behaviour rather than
+    // the renderer's geometry. Both default to on.
+    changed |= extBoolRow(doc, "autoGaze", "animation", "autoGaze", true,
+                          "Let the eye look around on its own. Off holds the "
+                          "gaze still, for a package that should stare.");
+    changed |= extBoolRow(doc, "autoBlink", "animation", "autoBlink", true,
+                          "Let the eye blink on its own. Off means it never "
+                          "blinks.");
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextDisabled("Saved under extensions.animation; the firmware reads "
+                        "these too.");
+    ImGui::PopTextWrapPos();
+  }
 
   if (ImGui::CollapsingHeader("Geometry and pupil",
                               ImGuiTreeNodeFlags_DefaultOpen)) {

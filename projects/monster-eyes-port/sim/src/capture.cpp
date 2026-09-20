@@ -29,8 +29,7 @@ uint64_t hostWallMicros(void) {
 // something in it -- host time actually spent, which is what says whether a
 // change made the renderer slower.
 FrameState captureState(Adafruit_Monster_Eyes &eyes, int index,
-                        const char *eyeName, bool autoGaze, bool autoBlink,
-                        float wallMs) {
+                        const char *eyeName, float wallMs) {
   FrameState s;
   s.index = index;
   s.timeUs = micros();
@@ -52,8 +51,8 @@ FrameState captureState(Adafruit_Monster_Eyes &eyes, int index,
   s.transferMs = eyes.transferMillis();
   s.frameRate = eyes.frameRate();
   s.wallMs = wallMs;
-  s.autoGaze = autoGaze;
-  s.autoBlink = autoBlink;
+  s.autoGaze = eyes.autoGaze();
+  s.autoBlink = eyes.autoBlink();
   return s;
 }
 

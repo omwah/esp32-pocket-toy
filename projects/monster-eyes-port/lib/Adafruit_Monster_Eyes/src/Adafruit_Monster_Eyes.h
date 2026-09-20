@@ -328,11 +328,17 @@ public:
    */
   void setAutoBlink(bool on) { _autoBlink = on; }
 
+  /** @brief Is the eye blinking on its own? @return true if it is. */
+  bool autoBlink(void) const { return _autoBlink; }
+
   /**
    * @brief Whether the eye looks around on its own.
    * @param on false to leave the gaze wherever it was last put.
    */
   void setAutoGaze(bool on) { _autoGaze = on; }
+
+  /** @brief Is the eye looking around on its own? @return true if it is. */
+  bool autoGaze(void) const { return _autoGaze; }
   ///@}
 
   // -----------------------------------------------------------------------
@@ -670,6 +676,7 @@ private:
   void storageEnd(void);
   bool mediaLoad(int size, uint32_t texBudget);
   void applyConfigRoot(const void *variantPtr);
+  void applyConfigExtensions(const void *variantPtr);
   void applyConfigVariant(const void *variantPtr, EyesVariant &v);
   /** @brief Convert a colour to the byte order the backend wants.
    *  @param v Native-endian RGB565. @return Output-order colour. */

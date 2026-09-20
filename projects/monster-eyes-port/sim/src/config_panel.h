@@ -79,6 +79,21 @@ public:
   /** @brief Write a boolean key. @param key Name. @param value Value. */
   void setBool(const char *key, bool value);
   /**
+   * @brief Read a boolean out of extensions.<feature>.
+   * @param feature Extension block name.
+   * @param key     Key within it.
+   * @param inForce Fallback when the file does not say.
+   * @return Value.
+   */
+  bool getExtBool(const char *feature, const char *key, bool inForce) const;
+  /**
+   * @brief Write a boolean into extensions.<feature>, creating both if needed.
+   * @param feature Extension block name.
+   * @param key     Key within it.
+   * @param value   Value.
+   */
+  void setExtBool(const char *feature, const char *key, bool value);
+  /**
    * @brief Read a colour key as native-endian RGB565.
    *
    * Accepts everything config.eye may hold: a number, a "0xF800" string, or an

@@ -65,6 +65,11 @@ struct Options {
   uint32_t seed = 1;              ///< Pseudo-random seed
   bool headless = false;          ///< Render without a window
   bool quiet = false;             ///< Silence the library's narration
+  // Tracked separately from the values so that a config.eye saying
+  // extensions.animation.autoGaze is not silently overridden by a default the
+  // user never asked for. Only an explicit flag wins over the file.
+  bool autoGazeSet = false;       ///< --no-auto-gaze was given
+  bool autoBlinkSet = false;      ///< --no-auto-blink was given
   bool autoGaze = true;           ///< Let the gaze animator run
   bool gazeFixed = false;         ///< Hold the gaze at gazeFixedX/Y
   float gazeFixedX = 0.0f;        ///< Held gaze, -1..1
@@ -130,7 +135,8 @@ public:
    * @return true if the renderer came up.
    */
   bool load(const std::vector<Package> &packages, size_t index, bool verbose,
-            bool autoGaze, bool autoBlink) {
+            bool autoGaze, bool autoBlink, bool gazeSet = true,
+            bool blinkSet = true) {
     if (index >= packages.size())
       return false;
     destroy();
@@ -154,8 +160,12 @@ public:
     // The device fills the panel with the eyelid colour so the eye sits on the
     // same background the config asked for rather than on black.
     _display.clear(_eyes->config().eyelidColor);
-    _eyes->setAutoGaze(autoGaze);
-    _eyes->setAutoBlink(autoBlink);
+    // begin() has already applied extensions.animation from the config, so
+    // these only override it where the command line actually said so.
+    if (gazeSet)
+      _eyes->setAutoGaze(autoGaze);
+    if (blinkSet)
+      _eyes->setAutoBlink(autoBlink);
     if (_fixedGaze)
       setScreenGaze(*_eyes, _fixedGazeX, _fixedGazeY);
     return true;
@@ -186,10 +196,15 @@ public:
    * @param autoGaze  Let the gaze animator run.
    * @param autoBlink Let the blink animator run.
    * @param gazeOwned Something else is steering the gaze, so keep holding it.
+   * @param autoGaze  Gaze animator setting from the command line.
+   * @param autoBlink Blink animator setting from the command line.
+   * @param gazeSet   The command line actually asked about the gaze.
+   * @param blinkSet  The command line actually asked about the blink.
    * @return true if the renderer came up.
    */
   bool reload(const std::vector<Package> &packages, size_t index, bool verbose,
-              bool autoGaze, bool autoBlink, bool gazeOwned) {
+              bool gazeOwned, bool autoGaze, bool autoBlink, bool gazeSet,
+              bool blinkSet) {
     float gazeX = 0.0f, gazeY = 0.0f, blink = 0.0f, iris = 0.5f;
     const bool had = _eyes != nullptr;
     if (had) {
@@ -198,7 +213,13 @@ public:
       blink = _eyes->blinkPhase();
       iris = _eyes->irisFraction();
     }
-    if (!load(packages, index, verbose, autoGaze, autoBlink))
+    // Where the eye is LOOKING is carried across, so a slider drag does not
+    // re-centre it. Whether the animators are RUNNING is not: the document
+    // being applied may have just changed extensions.animation, and it is the
+    // source of truth for that. The cost is that a g or b keypress does not
+    // outlive the next edit, which is the right way round -- the config wins.
+    if (!load(packages, index, verbose, autoGaze, autoBlink, gazeSet,
+              blinkSet))
       return false;
     if (had) {
       _eyes->setGaze(gazeX, gazeY);
@@ -366,8 +387,10 @@ bool parseArgs(int argc, char **argv, Options &opt, bool &list) {
       opt.quiet = true;
     } else if (!strcmp(a, "--no-auto-gaze")) {
       opt.autoGaze = false;
+      opt.autoGazeSet = true;
     } else if (!strcmp(a, "--no-auto-blink")) {
       opt.autoBlink = false;
+      opt.autoBlinkSet = true;
     } else if (!hasValue) {
       fprintf(stderr, "%s needs a value\n", a);
       return false;
@@ -465,8 +488,7 @@ int captureSequence(EyeHost &host, LinuxDisplay &display, const Options &opt,
       fprintf(stderr, "Could not write %s\n", path);
       return i;
     }
-    const FrameState state =
-        captureState(*eyes, i, eyeName, opt.autoGaze, opt.autoBlink, wallMs);
+    const FrameState state = captureState(*eyes, i, eyeName, wallMs);
     states.push_back(state);
 
     snprintf(path, sizeof(path), "%s-%03d.json", opt.outPrefix.c_str(), i);
@@ -676,17 +698,16 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
           SDL_SetWindowSize(window, windowW(panelOpen), windowH(panelOpen));
           break;
         case SDLK_G:
-          opt.autoGaze = !opt.autoGaze;
           if (eyes) {
-            eyes->setAutoGaze(opt.autoGaze);
-            if (opt.autoGaze)
+            const bool on = !eyes->autoGaze();
+            eyes->setAutoGaze(on);
+            if (on)
               eyes->releaseGaze();
           }
           break;
         case SDLK_B:
-          opt.autoBlink = !opt.autoBlink;
           if (eyes)
-            eyes->setAutoBlink(opt.autoBlink);
+            eyes->setAutoBlink(!eyes->autoBlink());
           break;
         case SDLK_M:
           mouseGaze = !mouseGaze;
@@ -725,7 +746,8 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
           FFat.clearOverlays();
           if (panelOpen || docLoaded)
             openDocument(index);
-          host.load(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink);
+          host.load(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink,
+                    opt.autoGazeSet, opt.autoBlinkSet);
           break;
         }
         case SDLK_R:
@@ -734,7 +756,8 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
           FFat.clearOverlays();
           if (panelOpen || docLoaded)
             openDocument(index);
-          host.load(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink);
+          host.load(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink,
+                    opt.autoGazeSet, opt.autoBlinkSet);
           break;
         case SDLK_C: {
           // Captures must be reproducible, so the clock stops following the
@@ -807,7 +830,8 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
                eyes ? eyes->irisFraction() : 0.0f);
       SDL_RenderDebugText(renderer, tx, 16, line);
       snprintf(line, sizeof(line), "auto gaze %s  blink %s  mouse %s   ? keys",
-               opt.autoGaze ? "on" : "off", opt.autoBlink ? "on" : "off",
+               (eyes && eyes->autoGaze()) ? "on" : "off",
+               (eyes && eyes->autoBlink()) ? "on" : "off",
                mouseGaze ? "on" : "off");
       SDL_RenderDebugText(renderer, tx, 28, line);
       SDL_SetRenderScale(renderer, 1.0f, 1.0f);
@@ -862,15 +886,17 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
       // package is read from its own file rather than through the last edit.
       FFat.clearOverlays();
       openDocument(index);
-      host.load(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink);
+      host.load(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink,
+                opt.autoGazeSet, opt.autoBlinkSet);
     } else if (panel.revertRequested) {
       FFat.clearOverlays();
       openDocument(index);
-      host.reload(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink,
-                  mouseGaze || opt.gazeFixed);
+      host.load(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink,
+                opt.autoGazeSet, opt.autoBlinkSet);
     } else if (panel.configChanged && applyDocument(index)) {
-      host.reload(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink,
-                  mouseGaze || opt.gazeFixed);
+      host.reload(packages, index, !opt.quiet, mouseGaze || opt.gazeFixed,
+                  opt.autoGaze, opt.autoBlink, opt.autoGazeSet,
+                  opt.autoBlinkSet);
     }
 
     if (panel.saveRequested) {
@@ -983,7 +1009,8 @@ int main(int argc, char **argv) {
   EyeHost host(display);
   if (opt.gazeFixed)
     host.holdGaze(opt.gazeFixedX, opt.gazeFixedY);
-  if (!host.load(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink))
+  if (!host.load(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink,
+                 opt.autoGazeSet, opt.autoBlinkSet))
     return 1;
 
   if (opt.headless) {
