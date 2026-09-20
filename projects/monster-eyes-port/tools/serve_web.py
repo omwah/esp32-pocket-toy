@@ -30,7 +30,7 @@ state = {
     "muted": False,
     "volume": 70,
     "brightness": 100,
-    "externalPower": "unknown",
+    "externalPower": "usb",
     "cycle": False,
     "interval": 30,
     "wifi": "connected",

@@ -40,6 +40,10 @@ async function post(url, data) {
 
 function renderStatus() {
   var battery = s.batteryPercent === null ? 'Unavailable' : s.batteryPercent + '%';
+  // The device can only see whether a USB host is attached, not whether a
+  // charger is; see projects/power-diagnostics for why there is nothing better.
+  var power = s.externalPower === 'usb' ? 'USB connected'
+    : s.externalPower === 'battery' ? 'Battery' : 'Unknown';
   var audio = s.audioPresent
     ? (s.hasSound ? (s.muted ? 'Muted' : 'On, ' + s.volume + '%') : 'Package has no sound')
     : 'No codec';
@@ -47,6 +51,7 @@ function renderStatus() {
     '<b>Style</b><span>' + h(s.styleName) + '</span>' +
     '<b>Mode</b><span>' + h(s.mode) + '</span>' +
     '<b>Battery</b><span>' + battery + '</span>' +
+    '<b>Power</b><span>' + power + '</span>' +
     '<b>Wi-Fi</b><span>' + h(s.wifi) + ' ' + h(s.ip || '') + '</span>' +
     '<b>Audio</b><span>' + audio + '</span>';
 }

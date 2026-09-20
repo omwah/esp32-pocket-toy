@@ -21,6 +21,7 @@ uint32_t touchStartedAt = 0;
 int touchStartX = 0;
 int touchStartY = 0;
 int batteryPercent = -1;
+uint32_t nextBatterySample = 0;
 WebControl web(monster, audio, batteryPercent, backlight);
 bool controlsVisible = false;
 bool controlsDirty = false;
@@ -50,7 +51,14 @@ void drawSoundIcon(int x, int y) {
     }
 }
 
+// Called on a timer as well as when the controls open. The web interface
+// reads batteryPercent through WebControl, and it used to be sampled only
+// while the on-screen controls were being drawn -- so a device nobody had
+// touched since boot reported the battery as unavailable indefinitely.
+constexpr uint32_t BATTERY_SAMPLE_MS = 30000;
+
 void sampleBattery() {
+    nextBatterySample = millis() + BATTERY_SAMPLE_MS;
     analogSetPinAttenuation(BATTERY_ADC, ADC_11db);
     uint32_t totalMv = 0;
     for (int i = 0; i < 16; ++i)
@@ -270,6 +278,8 @@ void loop() {
     }
     if (!touched) sleepCandidate = false;
     wasTouched = touched;
+
+    if (int32_t(now - nextBatterySample) >= 0) sampleBattery();
 
     uint8_t styleBeforeWeb = monster.style();
     web.update(now);

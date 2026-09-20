@@ -86,6 +86,13 @@ presses walk the whole package rather than replaying one file. Automatic
 playback stays random. Play answers 409 when the codec is missing, audio is
 muted, or the package has no sounds.
 
+The status JSON reports `externalPower` as `usb` or `battery`. This board
+brings no external-power signal out to a GPIO -- every unassigned pin holds the
+same state with the cable in and out, which `projects/power-diagnostics`
+measured -- so the value comes from the USB peripheral's own start-of-frame
+detection. It therefore means "a USB host is connected", and a dumb wall
+charger reads as `battery`.
+
 Screen brightness is `POST /api/display/brightness` (`brightness`, 0-100),
 reported back in the status JSON. The backlight is driven by an LEDC PWM
 channel on `TFT_BL` and the level is stored in NVS, so it survives a reboot.
