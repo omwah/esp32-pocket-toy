@@ -208,10 +208,17 @@ void Adafruit_Monster_Eyes::finalizeSettings(void) {
     _settings.displaySize &= ~1; // Keep even; the renderer halves it
   }
 
-  if (_settings.eyeRadius <= 0)
-    _settings.eyeRadius = _settings.displaySize / 2 + 5;
-  else
+  // The auto forms below need a display size to work from. This runs once
+  // before the backend is up, when displaySize may still be 0 meaning "fill
+  // whatever one eye gets"; deriving against that produces nonsense that then
+  // looks like a deliberate setting to the second pass, so leave the auto
+  // signal alone until there is a size.
+  if (_settings.eyeRadius <= 0) {
+    if (_settings.displaySize > 0)
+      _settings.eyeRadius = _settings.displaySize / 2 + 5;
+  } else {
     _settings.eyeRadius = abs(_settings.eyeRadius);
+  }
 
   // Auto values keep the stock demon proportions at ANY displaySize, so a
   // config can change size alone and stay geometrically consistent:
@@ -220,19 +227,28 @@ void Adafruit_Monster_Eyes::finalizeSettings(void) {
   //   slitPupilRadius 240 -> 100   (0.4167 * displaySize)
   // A mismatch between these is what lets the iris wander out of frame, so
   // leaving them at 0 / -1 is the safest way to resize the eye.
-  if (_settings.irisRadius <= 0)
-    _settings.irisRadius = (int)(0.4583f * (float)_settings.displaySize + 0.5f);
-  else
+  if (_settings.irisRadius <= 0) {
+    if (_settings.displaySize > 0)
+      _settings.irisRadius =
+          (int)(0.4583f * (float)_settings.displaySize + 0.5f);
+  } else {
     _settings.irisRadius = abs(_settings.irisRadius);
+  }
   // screen2map() takes sqrt(eyeRadius^2 - irisRadius^2); keep it real.
-  if (_settings.irisRadius >= _settings.eyeRadius)
+  if (_settings.eyeRadius > 0 && _settings.irisRadius >= _settings.eyeRadius)
     _settings.irisRadius = _settings.eyeRadius - 1;
 
   // 0 means a round pupil, so negative is the "auto" signal here.
-  if (_settings.slitPupilRadius < 0)
+  if (_settings.slitPupilRadius < 0 && _settings.displaySize > 0)
     _settings.slitPupilRadius =
         (int)(0.4167f * (float)_settings.displaySize + 0.5f);
-  if (_settings.slitPupilRadius > _settings.irisRadius)
+  // Only once the iris is known. begin() runs this immediately after the
+  // config is parsed, before the display is up, and with no displaySize the
+  // iris derives to 0 at that point -- clamping against that would zero a slit
+  // the config had just asked for, permanently. Every stock package sets
+  // irisRadius as well, which is why this never showed.
+  if (_settings.irisRadius > 0 &&
+      _settings.slitPupilRadius > _settings.irisRadius)
     _settings.slitPupilRadius = _settings.irisRadius;
 
   // COVERAGE MUST BE LARGE ENOUGH FOR THE EYE TO LOOK AROUND.
