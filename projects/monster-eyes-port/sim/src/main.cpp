@@ -31,11 +31,14 @@
 #include <sys/stat.h>
 
 #include <algorithm>
+#include <map>
 #include <string>
 #include <vector>
 
 #ifndef SIM_HEADLESS_ONLY
 #include "config_panel.h"
+#include "image_doc.h"
+#include "image_editor.h"
 #include "package_io.h"
 #include <SDL3/SDL.h>
 #include <imgui.h>
@@ -76,6 +79,7 @@ struct Options {
   float gazeFixedY = 0.0f;        ///< Held gaze, -1..1
   bool autoBlink = true;          ///< Let the blink animator run
   bool panel = false;             ///< Open the config editor at startup
+  bool images = false;            ///< Open the bitmap editor at startup
   int panelWidth = 380;           ///< Editor width in window pixels
 };
 
@@ -300,6 +304,39 @@ float screenGazeX(const Adafruit_Monster_Eyes &eyes) { return -eyes.gazeX(); }
  *  @param eyes Renderer to read. @return Y, -1 down to 1 up. */
 float screenGazeY(const Adafruit_Monster_Eyes &eyes) { return -eyes.gazeY(); }
 
+#ifndef SIM_HEADLESS_ONLY
+/**
+ * @brief Which window an event was aimed at, or 0 for none.
+ *
+ * With two windows there are two ImGui contexts, and each must be shown only
+ * its own input or they fight over the mouse. SDL puts the window id in a
+ * different member per event type, so this picks the right one.
+ */
+Uint32 eventWindowId(const SDL_Event &e) {
+  switch (e.type) {
+  case SDL_EVENT_KEY_DOWN:
+  case SDL_EVENT_KEY_UP:
+    return e.key.windowID;
+  case SDL_EVENT_TEXT_INPUT:
+    return e.text.windowID;
+  case SDL_EVENT_TEXT_EDITING:
+    return e.edit.windowID;
+  case SDL_EVENT_MOUSE_MOTION:
+    return e.motion.windowID;
+  case SDL_EVENT_MOUSE_BUTTON_DOWN:
+  case SDL_EVENT_MOUSE_BUTTON_UP:
+    return e.button.windowID;
+  case SDL_EVENT_MOUSE_WHEEL:
+    return e.wheel.windowID;
+  default:
+    // Everything else worth routing is a window event, which shares a layout.
+    if (e.type >= SDL_EVENT_WINDOW_FIRST && e.type <= SDL_EVENT_WINDOW_LAST)
+      return e.window.windowID;
+    return 0;
+  }
+}
+#endif
+
 /** @brief One row of the key list. */
 struct KeyHelp {
   const char *keys; ///< How the key is written
@@ -318,6 +355,7 @@ const KeyHelp kKeyHelp[] = {
     {"c", "capture frames to --out"},
     {"tab", "toggle the status overlay"},
     {"p", "toggle the config.eye editor"},
+    {"i", "toggle the image editor"},
     {"?", "this list"},
     {"q, escape", "quit"},
 };
@@ -335,6 +373,7 @@ void usage(const char *argv0) {
       "  --list           Print the packages found and exit\n"
       "  --scale N        Window pixels per panel pixel (default: 3)\n"
       "  --panel          Open the config.eye editor beside the display\n"
+      "  --images         Open the bitmap editor, in a window of its own\n"
       "  --panel-width N  Editor width in pixels (default: 380)\n"
       "  --fps N          Frame rate, for the virtual clock and as the cap on\n"
       "                   the window loop (default: 30; 0 uncaps the window)\n"
@@ -383,6 +422,8 @@ bool parseArgs(int argc, char **argv, Options &opt, bool &list) {
       list = true;
     } else if (!strcmp(a, "--panel")) {
       opt.panel = true;
+    } else if (!strcmp(a, "--images")) {
+      opt.images = true;
     } else if (!strcmp(a, "--quiet")) {
       opt.quiet = true;
     } else if (!strcmp(a, "--no-auto-gaze")) {
@@ -601,18 +642,226 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
   PanelState panelState;
   bool docLoaded = false;
 
+  // The bitmap editor. Edited images live here and are pushed into the overlay
+  // exactly as an edited config is, so the package on disk is untouched until
+  // it is saved.
+  // Its own OS window, so it can be moved, resized and put on another monitor
+  // independently of the preview. That means a second renderer and a second
+  // ImGui context: ImGui's own multi-viewport support is docking-branch only,
+  // and a context holds exactly one window's input and draw state.
+  ImGuiContext *mainCtx = ImGui::GetCurrentContext();
+  ImGuiContext *imageCtx = nullptr;
+  SDL_Window *imageWindow = nullptr;
+  SDL_Renderer *imageRenderer = nullptr;
+  bool imagesOpen = false;
+  ImageDocument image;
+  ImageEditorState imageState;
+  SDL_Texture *imageTexture = nullptr;
+  std::vector<std::string> imageNames;
+  size_t imageIndex = 0;
+  bool imageLoaded = false;
+  // Every bitmap edited in this package, by device path, so a save writes the
+  // edits rather than copying the originals over them.
+  std::map<std::string, std::vector<uint8_t>> editedImages;
+  // Edited config.eye text, by device path. Both maps are keyed by a path that
+  // carries the package id, so an edit to one package is inert while another
+  // is loaded and comes back into force on returning to it. That is what makes
+  // edits survive switching eyes.
+  std::map<std::string, std::string> editedConfigs;
+
+  // Forget everything edited in one package, for Revert and for r.
+  auto discardEdits = [&](size_t which) {
+    const std::string prefix = "/eyes/" + packages[which].id + "/";
+    for (auto it = editedImages.begin(); it != editedImages.end();) {
+      if (it->first.compare(0, prefix.size(), prefix) == 0) {
+        FFat.clearOverlay(it->first.c_str());
+        it = editedImages.erase(it);
+      } else {
+        ++it;
+      }
+    }
+    for (auto it = editedConfigs.begin(); it != editedConfigs.end();) {
+      if (it->first.compare(0, prefix.size(), prefix) == 0) {
+        FFat.clearOverlay(it->first.c_str());
+        it = editedConfigs.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  };
+
+  auto closeImageWindow = [&]() {
+    if (!imageCtx)
+      return;
+    // Torn down in the reverse order it was built, with the context current
+    // throughout: the backends free their own per-context state.
+    ImGui::SetCurrentContext(imageCtx);
+    if (imageTexture) {
+      SDL_DestroyTexture(imageTexture);
+      imageTexture = nullptr;
+    }
+    ImGui_ImplSDLRenderer3_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
+    ImGui::DestroyContext(imageCtx);
+    imageCtx = nullptr;
+    ImGui::SetCurrentContext(mainCtx);
+    if (imageRenderer) {
+      SDL_DestroyRenderer(imageRenderer);
+      imageRenderer = nullptr;
+    }
+    if (imageWindow) {
+      SDL_DestroyWindow(imageWindow);
+      imageWindow = nullptr;
+    }
+    imagesOpen = false;
+  };
+
+  auto openImageWindow = [&]() -> bool {
+    if (imageCtx)
+      return true;
+    if (!SDL_CreateWindowAndRenderer("Eye images", 1000, 640,
+                                     SDL_WINDOW_RESIZABLE, &imageWindow,
+                                     &imageRenderer)) {
+      fprintf(stderr, "Could not open the image editor window: %s\n",
+              SDL_GetError());
+      imageWindow = nullptr;
+      imageRenderer = nullptr;
+      return false;
+    }
+    IMGUI_CHECKVERSION();
+    imageCtx = ImGui::CreateContext();
+    ImGui::SetCurrentContext(imageCtx);
+    ImGuiIO &io2 = ImGui::GetIO();
+    io2.IniFilename = nullptr;
+    ImGui::StyleColorsDark();
+    ImGui::GetStyle().ScaleAllSizes((float)opt.scale * 0.5f);
+    io2.FontGlobalScale = (float)opt.scale * 0.5f;
+    ImGui_ImplSDL3_InitForSDLRenderer(imageWindow, imageRenderer);
+    ImGui_ImplSDLRenderer3_Init(imageRenderer);
+    ImGui::SetCurrentContext(mainCtx);
+    imagesOpen = true;
+    return true;
+  };
+
+  auto packageDir = [&](size_t which) {
+    return opt.assetRoot + "/eyes/" + packages[which].id;
+  };
+
+  auto listImages = [&](size_t which) {
+    imageNames.clear();
+    DIR *dir = opendir(packageDir(which).c_str());
+    if (!dir)
+      return;
+    while (const struct dirent *entry = readdir(dir)) {
+      const std::string n = entry->d_name;
+      if (n.size() > 4 && n.compare(n.size() - 4, 4, ".bmp") == 0)
+        imageNames.push_back(n);
+    }
+    closedir(dir);
+    std::sort(imageNames.begin(), imageNames.end());
+  };
+
+  auto devicePathFor = [&](size_t which, const std::string &name) {
+    return "/eyes/" + packages[which].id + "/" + name;
+  };
+
+  // Read a bitmap into the editor: an edit already made this session if there
+  // is one, otherwise the file.
+  auto openImage = [&](size_t which, size_t nameIndex) {
+    if (nameIndex >= imageNames.size())
+      return;
+    imageIndex = nameIndex;
+    const std::string devicePath = devicePathFor(which, imageNames[nameIndex]);
+    std::vector<uint8_t> bytes;
+    const auto edited = editedImages.find(devicePath);
+    if (edited != editedImages.end()) {
+      bytes = edited->second;
+    } else {
+      FILE *f = fopen((packageDir(which) + "/" + imageNames[nameIndex]).c_str(),
+                      "rb");
+      if (f) {
+        char buf[65536];
+        size_t n;
+        while ((n = fread(buf, 1, sizeof(buf), f)) > 0)
+          bytes.insert(bytes.end(), buf, buf + n);
+        fclose(f);
+      }
+    }
+    std::string error;
+    imageLoaded = image.load(bytes, &error);
+    imageState.message = imageLoaded ? "" : error;
+    if (imageLoaded) {
+      // Start on a colour the image actually uses rather than an arbitrary one.
+      imageState.color = image.kind() == ImageDocument::Indexed1
+                             ? image.paletteColor(true)
+                             : image.pixel(0, 0);
+      imageState.altColor = image.kind() == ImageDocument::Indexed1
+                                ? image.paletteColor(false)
+                                : 0x000000;
+    }
+  };
+
+  // Hand the edited bitmap to the renderer, which reloads it on the rebuild.
+  auto applyImage = [&](size_t which) {
+    if (!imageLoaded)
+      return;
+    const std::string devicePath = devicePathFor(which, imageNames[imageIndex]);
+    std::vector<uint8_t> bytes = image.encode();
+    FFat.setOverlay(devicePath.c_str(),
+                    std::string((const char *)bytes.data(), bytes.size()));
+    editedImages[devicePath] = std::move(bytes);
+  };
+
+
   // Read the package's real config.eye into the editor. The file on disk is
   // only ever read; an edit shadows it in memory rather than replacing it.
   auto openDocument = [&](size_t which) {
-    doc.load(opt.assetRoot + "/eyes" + "/" + packages[which].id +
-             "/config.eye");
+    const auto edited = editedConfigs.find(packages[which].config);
+    if (edited != editedConfigs.end())
+      doc.loadText(edited->second);
+    else
+      doc.load(opt.assetRoot + "/eyes" + "/" + packages[which].id +
+               "/config.eye");
     panelState.message.clear();
     docLoaded = true;
   };
 
   auto applyDocument = [&](size_t which) -> bool {
-    FFat.setOverlay(packages[which].config.c_str(), doc.serialise());
+    const std::string json = doc.serialise();
+    FFat.setOverlay(packages[which].config.c_str(), json);
+    editedConfigs[packages[which].config] = json;
     return true;
+  };
+
+  // Everything that has to happen when the package changes. This exists
+  // because it was open-coded at each of the four places that can change the
+  // package, and two of them -- the style drop-down and Save As -- were left
+  // without the image half, so the editor went on showing the previous
+  // package's bitmaps.
+  auto enterPackage = [&](size_t which) {
+    const std::string keep =
+        imageIndex < imageNames.size() ? imageNames[imageIndex] : std::string();
+    index = which;
+    // Nothing is cleared. The overlays and both edit maps are keyed by device
+    // path, so another package's edits simply do not match anything the
+    // renderer asks for while this one is loaded.
+    if (panelOpen || docLoaded)
+      openDocument(index);
+    listImages(index);
+    if (imageCtx) {
+      // Stay on the same filename where the new package has one, since
+      // stepping through packages to compare the same texture is the common
+      // reason to be doing this at all.
+      size_t want = 0;
+      for (size_t i = 0; i < imageNames.size(); ++i)
+        if (imageNames[i] == keep)
+          want = i;
+      openImage(index, want);
+    } else {
+      imageLoaded = false;
+    }
+    host.load(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink,
+              opt.autoGazeSet, opt.autoBlinkSet);
   };
 
   // The window follows the host clock: the frame rate the library reports here
@@ -634,6 +883,9 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
 
   if (panelOpen)
     openDocument(index);
+  listImages(index);
+  if (opt.images && openImageWindow())
+    openImage(index, 0);
 
   bool running = true;
   bool overlay = true;
@@ -645,10 +897,25 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
   while (running) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
+      const Uint32 evWindow = eventWindowId(event);
+      const Uint32 imageWindowId =
+          imageWindow ? SDL_GetWindowID(imageWindow) : 0;
+      const bool forImageWindow = imageCtx && evWindow == imageWindowId;
+
+      if (forImageWindow) {
+        ImGui::SetCurrentContext(imageCtx);
+        ImGui_ImplSDL3_ProcessEvent(&event);
+        ImGui::SetCurrentContext(mainCtx);
+        if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED)
+          closeImageWindow();
+        continue; // The preview never sees the editor's input
+      }
       ImGui_ImplSDL3_ProcessEvent(&event);
+
       // While a text field has focus, 'q' means the letter q.
-      const bool imguiWantsKeys = panelOpen && ImGui::GetIO().WantCaptureKeyboard;
-      const bool imguiWantsMouse = panelOpen && ImGui::GetIO().WantCaptureMouse;
+      const bool uiOpen = panelOpen;
+      const bool imguiWantsKeys = uiOpen && ImGui::GetIO().WantCaptureKeyboard;
+      const bool imguiWantsMouse = uiOpen && ImGui::GetIO().WantCaptureMouse;
       if (event.type == SDL_EVENT_QUIT) {
         running = false;
       } else if (event.type == SDL_EVENT_KEY_DOWN && imguiWantsKeys) {
@@ -690,6 +957,14 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
           break;
         case SDLK_TAB:
           overlay = !overlay;
+          break;
+        case SDLK_I:
+          if (imagesOpen) {
+            closeImageWindow();
+          } else if (openImageWindow()) {
+            if (!imageLoaded)
+              openImage(index, imageIndex);
+          }
           break;
         case SDLK_P:
           panelOpen = !panelOpen;
@@ -738,26 +1013,17 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
           if (packages.size() < 2)
             break;
           const int direction = (event.key.key == SDLK_RIGHTBRACKET) ? 1 : -1;
-          index = (index + packages.size() + (size_t)direction) %
-                  packages.size();
-          // A different package means a different file, so the editor follows
-          // it and the library goes back to reading the real assets until the
-          // next edit.
-          FFat.clearOverlays();
-          if (panelOpen || docLoaded)
-            openDocument(index);
-          host.load(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink,
-                    opt.autoGazeSet, opt.autoBlinkSet);
+          enterPackage((index + packages.size() + (size_t)direction) %
+                       packages.size());
           break;
         }
         case SDLK_R:
           // Rebuilding is the only honest reload: the polar maps and the
-          // texture budget are both sized from the config being reread.
-          FFat.clearOverlays();
-          if (panelOpen || docLoaded)
-            openDocument(index);
-          host.load(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink,
-                    opt.autoGazeSet, opt.autoBlinkSet);
+          // texture budget are both sized from the config being reread. This
+          // one really does mean "go back to the file", so this package's
+          // edits go -- but only this package's.
+          discardEdits(index);
+          enterPackage(index);
           break;
         case SDLK_C: {
           // Captures must be reproducible, so the clock stops following the
@@ -784,7 +1050,9 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
                         LinuxDisplay::PANEL_W * (int)sizeof(uint16_t));
 
     PanelResult panel;
-    if (panelOpen) {
+    ImageEditorResult imageResult;
+    const bool anyUi = panelOpen;
+    if (anyUi) {
       ImGui_ImplSDLRenderer3_NewFrame();
       ImGui_ImplSDL3_NewFrame();
       ImGui::NewFrame();
@@ -800,8 +1068,9 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
       names.reserve(packages.size());
       for (const Package &p : packages)
         names.push_back(p.id);
-      panel = drawConfigPanel(doc, configDefaults, panelState, layout, names,
-                              index);
+      if (panelOpen)
+        panel = drawConfigPanel(doc, configDefaults, panelState, layout, names,
+                                index);
       ImGui::Render();
     }
 
@@ -872,24 +1141,59 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
       SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     }
 
-    if (panelOpen)
+    if (anyUi)
       ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
 
     SDL_RenderPresent(renderer);
 
+    if (imageCtx && imageLoaded) {
+      ImGui::SetCurrentContext(imageCtx);
+      ImGui_ImplSDLRenderer3_NewFrame();
+      ImGui_ImplSDL3_NewFrame();
+      ImGui::NewFrame();
+      int ww = 0, wh = 0;
+      SDL_GetWindowSize(imageWindow, &ww, &wh);
+      imageResult = drawImageEditor(image, imageState, imageNames, imageIndex,
+                                    imageRenderer, &imageTexture, (float)ww,
+                                    (float)wh);
+      ImGui::Render();
+      SDL_SetRenderDrawColor(imageRenderer, 30, 30, 34, 255);
+      SDL_RenderClear(imageRenderer);
+      ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(),
+                                            imageRenderer);
+      SDL_RenderPresent(imageRenderer);
+      ImGui::SetCurrentContext(mainCtx);
+    }
+
     // Acted on after presenting, so a rebuild happens once per frame however
     // many widgets a drag touched.
+    if (imageResult.selectImage >= 0 &&
+        (size_t)imageResult.selectImage != imageIndex) {
+      openImage(index, (size_t)imageResult.selectImage);
+    } else if (imageResult.revertRequested) {
+      // Drop this one image's edit so openImage() falls back to its file.
+      if (imageIndex < imageNames.size()) {
+        const std::string p = devicePathFor(index, imageNames[imageIndex]);
+        editedImages.erase(p);
+        FFat.clearOverlay(p.c_str());
+      }
+      openImage(index, imageIndex);
+      host.reload(packages, index, !opt.quiet, mouseGaze || opt.gazeFixed,
+                  opt.autoGaze, opt.autoBlink, opt.autoGazeSet,
+                  opt.autoBlinkSet);
+    } else if (imageResult.imageChanged) {
+      applyImage(index);
+      host.reload(packages, index, !opt.quiet, mouseGaze || opt.gazeFixed,
+                  opt.autoGaze, opt.autoBlink, opt.autoGazeSet,
+                  opt.autoBlinkSet);
+    }
+
     if (panel.selectPackage >= 0 &&
         (size_t)panel.selectPackage != index) {
-      index = (size_t)panel.selectPackage;
-      // Same as stepping with [ or ]: the overlay goes, so the newly chosen
-      // package is read from its own file rather than through the last edit.
-      FFat.clearOverlays();
-      openDocument(index);
-      host.load(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink,
-                opt.autoGazeSet, opt.autoBlinkSet);
+      enterPackage((size_t)panel.selectPackage);
     } else if (panel.revertRequested) {
-      FFat.clearOverlays();
+      FFat.clearOverlay(packages[index].config.c_str());
+      editedConfigs.erase(packages[index].config);
       openDocument(index);
       host.load(packages, index, !opt.quiet, opt.autoGaze, opt.autoBlink,
                 opt.autoGazeSet, opt.autoBlinkSet);
@@ -908,6 +1212,24 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
         panelState.message = error;
         panelState.messageIsError = true;
       } else {
+        // copyPackageAssets() brought the originals across; anything edited
+        // in this session overwrites its copy, or the save would quietly
+        // discard exactly the work being saved.
+        //
+        // Only THIS package's edits: the map holds every package edited this
+        // session, and matching on the basename alone would drop another
+        // eye's iris.bmp into the one being saved.
+        const std::string fromPrefix = "/eyes/" + packages[index].id + "/";
+        for (const auto &edit : editedImages) {
+          if (edit.first.compare(0, fromPrefix.size(), fromPrefix) != 0)
+            continue;
+          const std::string name = edit.first.substr(fromPrefix.size());
+          FILE *bf = fopen((toDir + "/" + name).c_str(), "wb");
+          if (bf) {
+            fwrite(edit.second.data(), 1, edit.second.size(), bf);
+            fclose(bf);
+          }
+        }
         const std::string configPath = toDir + "/config.eye";
         FILE *f = fopen(configPath.c_str(), "wb");
         const std::string json = doc.serialise();
@@ -916,12 +1238,14 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
           doc.clearDirty();
           panelState.message = "Saved as " + panel.saveAsId;
           panelState.messageIsError = false;
-          // Make it selectable with [ and ] straight away.
+          // Make it selectable with [ and ] straight away, and move onto it,
+          // which also points the editor at the saved package's bitmaps.
           packages = findPackages(opt.assetRoot);
-          FFat.clearOverlays();
+          size_t saved = index;
           for (size_t i = 0; i < packages.size(); ++i)
             if (packages[i].id == panel.saveAsId)
-              index = i;
+              saved = i;
+          enterPackage(saved);
           panelState.saveAsId[0] = 0;
         } else {
           if (f)
@@ -942,6 +1266,7 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
     }
   }
 
+  closeImageWindow();
   ImGui_ImplSDLRenderer3_Shutdown();
   ImGui_ImplSDL3_Shutdown();
   ImGui::DestroyContext();

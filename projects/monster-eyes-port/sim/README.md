@@ -78,6 +78,7 @@ Paths are relative to `projects/monster-eyes-port`, since `--assets` defaults to
 | `c` | Capture 8 frames to `eye-capture-*` |
 | tab | Toggle the status overlay |
 | `p` | Toggle the config.eye editor |
+| `i` | Open or close the bitmap editor window |
 | `?` | Show the key list over the eye |
 | `q`, escape | Quit |
 
@@ -173,6 +174,55 @@ across, so the eye keeps looking where it was instead of re-centring on every
 slider movement. A rebuild costs under a millisecond and does not accumulate
 memory — 2000 edit-and-rebuild cycles move RSS by about 140 KiB, the same as
 200, which is the allocator settling rather than a leak.
+
+## The bitmap editor
+
+`--images`, or `i` in the preview, opens a paint window with a drop-down of
+every `.bmp` in the package. It is a real second window: move it, resize it, put
+it on another monitor. `i` again, or closing it, puts it away. Paint and the eye changes as you
+watch. Tools are pencil, eraser, fill, eyedropper, line, rectangle and Bezier, with a
+brush size, zoom, and undo and redo. Each says what it is for on hover.
+
+Edits go the same way config edits do: the image is encoded back to a BMP in
+memory and served through the FFat overlay, so nothing under `data/` is written.
+Save As writes the edited bitmaps into the new package and copies the rest, so
+what is saved is what you were looking at. **Revert** drops one image's edits
+and rereads its file.
+
+**Edits survive switching eyes.** Both the config and the bitmap edits are held
+by device path, which carries the package id, so one package's edits are inert
+while another is loaded and come back into force on returning to it — step
+through several eyes and come back, and the work is still there. Nothing is
+written to disk either way. `r` is the way to throw an eye's edits away and
+reread its files, and it only affects the package you are on.
+
+It has its own SDL window, renderer and ImGui context, since ImGui's
+multi-viewport support is docking-branch only and one context holds one window's
+input. Events are routed to a context by the window id they carry, so typing in
+the editor never reaches the preview's keys.
+
+### The two kinds of image, and why it matters
+
+The palette follows what the file can hold, and the two are not the same job.
+
+**Eyelids** (`upper.bmp`, `lower.bmp`) are 1-bit, always 240x240, so there are
+two colours and no others. More to the point, `bmpLoadEyelid` reads only the
+**topmost and bottommost lit pixel of each column** and discards the rest: the
+image is a silhouette envelope, not a picture, and a hole punched in the middle
+of a lid changes nothing at all. For an upper lid the top edge of the lit band
+is where the lid sits fully open and the bottom edge where it sits fully shut,
+reversed for a lower lid, with the config's `squint` deciding where between them
+it rests, so a lid is drawn in two steps: stroke its edge with the Bezier tool,
+then flood fill the side that should be solid. The stroke alone is not enough —
+a bare line puts the open and shut positions on the same row, which pins the lid
+still.
+
+**Iris and sclera** are 24-bit and **polar**: x is the angle around the eye,
+0 to 1023 across the width, and y is distance out from the pupil. They are not
+pictures of an eye, so painting one is not painting on the eye — the preview
+beside the editor is how you tell what a stroke did. The renderer converts to
+RGB565 as it loads, so the picker's colours are shown already rounded to what
+will survive, and the swatch row offers the colours the image actually uses.
 
 ## Capturing frames for an agent
 

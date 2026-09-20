@@ -27,23 +27,32 @@ ConfigDocument::ConfigDocument() : _impl(new Impl), _dirty(false) {
 ConfigDocument::~ConfigDocument() { delete _impl; }
 
 bool ConfigDocument::load(const std::string &hostPath) {
-  _dirty = false;
-  _impl->doc.clear();
-  _impl->doc.to<JsonObject>();
-
   FILE *f = fopen(hostPath.c_str(), "rb");
-  if (!f)
+  if (!f) {
+    _dirty = false;
+    _impl->doc.clear();
+    _impl->doc.to<JsonObject>();
     return false;
+  }
   std::string text;
   char buf[4096];
   size_t n;
   while ((n = fread(buf, 1, sizeof(buf), f)) > 0)
     text.append(buf, n);
   fclose(f);
+  if (!loadText(text)) {
+    fprintf(stderr, "Could not parse %s\n", hostPath.c_str());
+    return false;
+  }
+  return true;
+}
 
-  const DeserializationError err = deserializeJson(_impl->doc, text);
+bool ConfigDocument::loadText(const std::string &json) {
+  _dirty = false;
+  _impl->doc.clear();
+  _impl->doc.to<JsonObject>();
+  const DeserializationError err = deserializeJson(_impl->doc, json);
   if (err) {
-    fprintf(stderr, "Could not parse %s: %s\n", hostPath.c_str(), err.c_str());
     _impl->doc.clear();
     _impl->doc.to<JsonObject>();
     return false;

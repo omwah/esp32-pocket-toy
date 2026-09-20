@@ -49,6 +49,7 @@ add_executable(eye-sim
     src/main.cpp
     src/capture.cpp
     src/package_io.cpp
+    src/image_doc.cpp
     shim/Arduino.cpp
     shim/FFat.cpp
     ${EYES_LIB_DIR}/Adafruit_Monster_Eyes.cpp
@@ -61,6 +62,7 @@ add_executable(eye-sim
 if(SDL3_FOUND)
     target_sources(eye-sim PRIVATE
         src/config_panel.cpp
+        src/image_editor.cpp
         ${IMGUI_DIR}/imgui.cpp
         ${IMGUI_DIR}/imgui_draw.cpp
         ${IMGUI_DIR}/imgui_tables.cpp

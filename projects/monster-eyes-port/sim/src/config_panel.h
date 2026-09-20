@@ -51,6 +51,17 @@ public:
    */
   bool load(const std::string &hostPath);
 
+  /**
+   * @brief Parse config JSON already in hand.
+   *
+   * Used to reopen a package whose config was edited earlier in the session,
+   * where the edit is held in memory rather than on disk.
+   *
+   * @param json Document text.
+   * @return true if it parsed.
+   */
+  bool loadText(const std::string &json);
+
   /** @brief Serialise to JSON text. @return The file content to write. */
   std::string serialise(void) const;
 
