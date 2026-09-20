@@ -161,6 +161,14 @@ void ConfigDocument::setColor(const char *key, uint16_t value) {
 
 namespace {
 
+// The star on a control's name and this note are a footnote pair: the name
+// carries the mark, the help says what it means. Between them they show which
+// settings a stock Adafruit Monster Eyes package will not understand. The
+// additions are the horizontal and rounded slit pupils (5d930ad), iris flow
+// (f863dec) and the animation switches (d6079ff); everything else came over
+// with the migration and behaves as upstream does.
+#define EXTENSION_NOTE " *Extension, not in upstream Monster Eyes."
+
 // Where the hovered control's explanation goes. A file-static rather than a
 // parameter threaded through thirty call sites: the panel is immediate mode and
 // single threaded, so there is exactly one frame in flight, and it is reset at
@@ -336,10 +344,6 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
                       now.slitPupilRadius, -1, 250,
                       "0 for a round pupil, -1 to derive it, or the slit "
                       "length in pixels.");
-    changed |= boolRow(doc, "slitPupilHorizontal", "slitPupilHorizontal",
-                       now.slitPupilHorizontal, "Lay the slit on its side.");
-    changed |= boolRow(doc, "slitPupilRounded", "slitPupilRounded",
-                       now.slitPupilRounded, "Round the ends of the slit.");
     changed |= intRow(doc, "displaySize", "displaySize", now.displaySize, 0, 240,
                       "Eye width and height in pixels; 0 fills the display.");
     changed |= floatRow(doc, "coverage", "coverage", now.coverageRequested,
@@ -357,6 +361,12 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
                       "Convergence toward the face, in map pixels.");
     changed |= boolRow(doc, "tracking", "tracking", now.tracking,
                        "Let the upper lid follow the gaze.");
+    changed |= boolRow(doc, "slitPupilHorizontal*", "slitPupilHorizontal",
+                       now.slitPupilHorizontal,
+                       "Lay the slit on its side." EXTENSION_NOTE);
+    changed |= boolRow(doc, "slitPupilRounded*", "slitPupilRounded",
+                       now.slitPupilRounded,
+                       "Round the ends of the slit." EXTENSION_NOTE);
   }
 
   if (ImGui::CollapsingHeader("Colours", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -382,16 +392,17 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
     // audio block the sketch reads, because they are behaviour rather than
     // the renderer's geometry. Both default to on.
     sectionNote("What the eye does when nothing is steering it.");
-    changed |= extBoolRow(doc, "autoGaze", "animation", "autoGaze", true,
-                          "Let the eye look around on its own. Off holds the "
-                          "gaze still, for a package that should stare.");
-    changed |= extBoolRow(doc, "autoBlink", "animation", "autoBlink", true,
-                          "Let the eye blink on its own. Off means it never "
-                          "blinks.");
     changed |= intRow(doc, "gazeMax", "gazeMax", (int)now.gazeMax, 100000,
                       10000000,
                       "Longest wait between major eye movements, in "
                       "microseconds. Only matters with autoGaze on.");
+    changed |= extBoolRow(doc, "autoGaze*", "animation", "autoGaze", true,
+                          "Let the eye look around on its own. Off holds the "
+                          "gaze still, for a package that should "
+                          "stare." EXTENSION_NOTE);
+    changed |= extBoolRow(doc, "autoBlink*", "animation", "autoBlink", true,
+                          "Let the eye blink on its own. Off means it never "
+                          "blinks." EXTENSION_NOTE);
   }
 
   if (ImGui::CollapsingHeader("Rotation")) {
@@ -421,17 +432,19 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
 
   if (ImGui::CollapsingHeader("Iris flow")) {
     sectionNote("Iris creeps along a moving wave, without turning.");
-    changed |= floatRow(doc, "irisFlow", "irisFlow", now.irisFlow, 0.0f, 1.0f,
+    changed |= floatRow(doc, "irisFlow*", "irisFlow", now.irisFlow, 0.0f, 1.0f,
                         "%.3f",
                         "How far the sampling shifts at the peak, as a "
-                        "fraction of iris depth. 0 switches the effect off.");
-    changed |= floatRow(doc, "irisFlowSpeed", "irisFlowSpeed",
+                        "fraction of iris depth. 0 switches the effect "
+                        "off." EXTENSION_NOTE);
+    changed |= floatRow(doc, "irisFlowSpeed*", "irisFlowSpeed",
                         now.irisFlowSpeed, -10.0f, 10.0f, "%.2f",
                         "Wave crests leaving the pupil per second. Negative "
-                        "draws them inward.");
-    changed |= floatRow(doc, "irisFlowWaves", "irisFlowWaves",
+                        "draws them inward." EXTENSION_NOTE);
+    changed |= floatRow(doc, "irisFlowWaves*", "irisFlowWaves",
                         now.irisFlowWaves, 0.0f, 20.0f, "%.2f",
-                        "How many crests sit between the pupil and the rim.");
+                        "How many crests sit between the pupil and the "
+                        "rim." EXTENSION_NOTE);
   }
 
   ImGui::PopItemWidth();
