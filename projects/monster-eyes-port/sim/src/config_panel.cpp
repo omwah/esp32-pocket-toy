@@ -377,13 +377,22 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
                         "%.3f", "Smallest pupil as a fraction of the iris.");
     changed |= floatRow(doc, "pupilMax", "pupilMax", now.pupilMax, 0.0f, 1.0f,
                         "%.3f", "Largest pupil as a fraction of the iris.");
-    // The file stores squint; the renderer holds 1 - squint as trackFactor.
-    changed |= floatRow(doc, "squint", "squint", 1.0f - now.trackFactor, 0.0f,
-                        1.0f, "%.3f", "How far the lid rests down.");
     changed |= intRow(doc, "fixate", "fixate", now.fixate, -60, 60,
                       "Convergence toward the face, in map pixels.");
     changed |= boolRow(doc, "tracking", "tracking", now.tracking,
-                       "Let the upper lid follow the gaze.");
+                       "Let the lids follow the gaze. Squint does nothing "
+                       "without it.");
+    // Squint is the resting offset of that tracking and is read nowhere else,
+    // so it is inert while tracking is off rather than merely subtle.
+    const bool tracking = doc.getBool("tracking", now.tracking);
+    ImGui::BeginDisabled(!tracking);
+    // The file stores squint; the renderer holds 1 - squint as trackFactor.
+    changed |= floatRow(doc, "squint", "squint", 1.0f - now.trackFactor, 0.0f,
+                        1.0f, "%.3f",
+                        "Where the lids rest while they track the gaze; inert "
+                        "with tracking off. Raising it lowers the upper lid "
+                        "and drops the lower with it, scaled by irisRadius.");
+    ImGui::EndDisabled();
     changed |= boolRow(doc, "slitPupilHorizontal*", "slitPupilHorizontal",
                        now.slitPupilHorizontal,
                        "Lay the slit on its side." EXTENSION_NOTE);
