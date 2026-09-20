@@ -143,6 +143,24 @@ void enterDeepSleep() {
 
 void drawScreenBackground() {
     const uint16_t color = monster.screenBackground();
+    if (backend.eyeCount() == 1) {
+        // Everything outside the one eye, taken from where it actually landed:
+        // the literals below describe the pair and would leave stale pixels
+        // here. Not assumed to reach the top and bottom either, since begin()
+        // shrinks the eye when the tables will not fit, which leaves a band
+        // above and below it.
+        const int x0 = backend.eyeOriginX(), y0 = backend.eyeOriginY();
+        const int size = backend.eyeSize();
+        if (x0 > 0) display.fillRect(0, 0, x0, SCREEN_H, color);
+        if (x0 + size < SCREEN_W)
+            display.fillRect(x0 + size, 0, SCREEN_W - (x0 + size), SCREEN_H,
+                             color);
+        if (y0 > 0) display.fillRect(x0, 0, size, y0, color);
+        if (y0 + size < SCREEN_H)
+            display.fillRect(x0, y0 + size, size, SCREEN_H - (y0 + size),
+                             color);
+        return;
+    }
     display.fillRect(0, 0, SCREEN_W, 56, color);
     display.fillRect(0, 184, SCREEN_W, SCREEN_H - 184, color);
     display.fillRect(0, 56, 18, 128, color);
@@ -154,6 +172,10 @@ void showControls(uint32_t now) {
     if (!controlsVisible) {
         sampleBattery();
         controlsDirty = true;
+        // Hand the header and footer rows to the sketch while they are shown.
+        // One eye would otherwise repaint them every frame, and the controls
+        // are only drawn when they change.
+        backend.setReservedRows(56, 40);
     }
     controlsVisible = true;
     controlsUntil = now + 5000;
@@ -221,6 +243,8 @@ void drawControls() {
 void hideControls() {
     if (!controlsVisible) return;
     controlsVisible = false;
+    // The rows go back to the renderer, which repaints them on the next frame.
+    backend.setReservedRows(0, 0);
     controlsDirty = false;
     display.fillRect(0, 0, SCREEN_W, 56, monster.screenBackground());
     display.fillRect(0, SCREEN_H - 40, SCREEN_W, 40,

@@ -68,6 +68,22 @@ public:
    *  @return Framebuffer, or NULL before begin(). */
   const uint16_t *framebuffer(void) const { return _fb; }
 
+  /**
+   * @brief Rows at the top and bottom the renderer must not paint.
+   *
+   * Mirrors CompositeTftDisplay, where the sketch reserves the header and
+   * footer while its controls are showing. One eye is as tall as the panel, so
+   * without this the eye repaints those rows every frame and anything drawn
+   * over it flickers.
+   *
+   * @param top    Rows reserved at the top.
+   * @param bottom Rows reserved at the bottom.
+   */
+  void setReservedRows(int top, int bottom) {
+    _reserveTop = top;
+    _reserveBottom = bottom;
+  }
+
 protected:
   // The logical size one eye may occupy; where it physically lands is decided
   // per eye in flushStripe(), exactly as the device backend does it.
@@ -89,13 +105,21 @@ protected:
     // Row-major, `width` pixels per row, top row first -- the layout
     // TFT_eSPI::pushImage() expects, so the copy here is the same copy the
     // device makes into its capture mirror.
-    for (int row = 0; row < eyeSize(); ++row)
-      memcpy(&_fb[(size_t)(y0 + row) * PANEL_W + x],
-             &pixels[(size_t)row * width], (size_t)width * sizeof(uint16_t));
+    const int top = _reserveTop;
+    const int bottom = PANEL_H - _reserveBottom;
+    for (int row = 0; row < eyeSize(); ++row) {
+      const int y = y0 + row;
+      if (y < top || y >= bottom)
+        continue;
+      memcpy(&_fb[(size_t)y * PANEL_W + x], &pixels[(size_t)row * width],
+             (size_t)width * sizeof(uint16_t));
+    }
   }
 
 private:
   uint16_t *_fb = nullptr;   ///< PANEL_W * PANEL_H pixels
+  int _reserveTop = 0;       ///< Rows at the top the host owns
+  int _reserveBottom = 0;    ///< Rows at the bottom the host owns
   uint16_t _background = 0;  ///< Last clear() colour
 };
 

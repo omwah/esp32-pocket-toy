@@ -77,6 +77,27 @@ public:
     // been armed at least once.
     const uint16_t *mirror() const { return _mirror; }
 
+    // Where a single eye sits, so the sketch can clear what is left around it
+    // rather than assuming the two-eye layout. Meaningless with two eyes,
+    // which use the fixed pair of offsets above.
+    int eyeOriginX() const { return originX(); }
+    int eyeOriginY() const { return originY(); }
+
+    // Rows at the top and bottom the renderer must not paint, so the sketch's
+    // header and footer can own them outright.
+    //
+    // Redrawing the controls after every frame instead would flicker badly:
+    // both would be writing the same pixels thirty times a second and the eye
+    // would show through between them. Reserving the band means each pixel is
+    // written once, by whoever owns it.
+    //
+    // With two eyes this changes nothing -- they occupy rows 56 to 183 and
+    // never reach the bands -- so it costs the pair neither pixels nor time.
+    void setReservedRows(int top, int bottom) {
+        _reserveTop = top;
+        _reserveBottom = bottom;
+    }
+
 protected:
     void panelSize(int *width, int *height) override {
         if (_numEyes == 1) {
@@ -97,7 +118,17 @@ protected:
         // origin it worked out rather than the two-eye offsets.
         const int x = (_numEyes == 1) ? originX() + x0 : eyeX(eye & 1) + x0;
         const int y = (_numEyes == 1) ? originY() : EYE_Y;
-        _tft.pushImage(x, y, width, eyeSize(), pixels);
+
+        // Clip to the rows the renderer is allowed. The stripe is row-major
+        // with `width` pixels a row, so skipping the first rows is an offset
+        // into the same buffer rather than a copy.
+        const int top = _reserveTop;
+        const int bottom = PANEL_H - _reserveBottom;
+        const int visibleY0 = (y > top) ? y : top;
+        const int visibleY1 = (y + eyeSize() < bottom) ? y + eyeSize() : bottom;
+        if (visibleY1 > visibleY0)
+            _tft.pushImage(x, visibleY0, width, visibleY1 - visibleY0,
+                           pixels + size_t(visibleY0 - y) * width);
         if (!_capturing || !_mirror) return;
         // The stripe is row-major, `width` pixels per row, exactly as
         // pushImage() reads it.
@@ -108,6 +139,8 @@ protected:
 
 private:
     TFT_eSPI &_tft;
+    int _reserveTop = 0;     ///< Rows at the top the sketch owns
+    int _reserveBottom = 0;  ///< Rows at the bottom the sketch owns
     uint16_t *_mirror = nullptr;
     uint16_t _background = 0;
     bool _capturing = false;
