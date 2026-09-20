@@ -28,5 +28,5 @@ private:
     String resolveAsset(const String &root, const String &value) const;
     String _id, _token, _stage;
     File _file;
-    size_t _total = 0;
+    size_t _total = 0, _fileBytes = 0;
 };

@@ -129,6 +129,22 @@ Package files are limited to 1 MiB each and 3 MiB per staged package. Uploads
 accept `config.eye`, 24-bit uncompressed texture BMPs, 1-bit uncompressed eyelid
 BMPs, and PCM WAV files.
 
+Two things about the Arduino filesystem API shape this code, and both were
+found the hard way when the first upload of every session failed:
+
+- `File::size()` cannot be trusted on a file that has just been opened for
+  writing. The VFS only re-stats a file once something has been written to it,
+  so until then the handle reports whatever uninitialised stat data it was
+  built with. Staged bytes are counted as they arrive instead.
+- `FFat.exists()` answers false for a directory, so it cannot be used to ask
+  whether a package is present. Publishing, renaming and deleting a package all
+  open the path and ask the handle whether it is a directory.
+
+Staging directories are siblings of the live packages (`/eyes/.stage-<token>`,
+with `/eyes/.backup-<token>` for the package being replaced) so that publishing
+is a rename within one directory. The package scanner skips names beginning
+with a dot, and any left over from an interrupted upload are removed at boot.
+
 ## The deer package
 
 `data/eyes/deer` is the one migrated style whose artwork is generated rather

@@ -48,6 +48,10 @@ bool MonsterController::refreshPackages() {
         String config = path + "/config.eye";
         if (!FFat.exists(config)) continue;
         String id = path.substring(path.lastIndexOf('/') + 1);
+        // Upload staging and publish backups live in /eyes as dot-directories,
+        // so that publishing is a rename within one directory. Neither is a
+        // style, and a staged one may be half-written.
+        if (id.startsWith(".")) continue;
         String name = id;
         bool capitalize = true;
         for (size_t i = 0; i < name.length(); ++i) {

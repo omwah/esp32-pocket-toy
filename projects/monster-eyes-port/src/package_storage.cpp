@@ -15,6 +15,17 @@ uint32_t le32(const uint8_t *p) {
            uint32_t(p[3]) << 24;
 }
 
+// FFat.exists() answers false for a directory on this core, so asking it
+// whether a package is there says no however plainly the package is there.
+// Opening the path and asking the handle is what the package scanner does,
+// and that works.
+bool dirExists(const String &path) {
+    File f = FFat.open(path);
+    bool ok = f && f.isDirectory();
+    if (f) f.close();
+    return ok;
+}
+
 }  // namespace
 
 bool PackageStorage::validId(const String &s) {
@@ -53,9 +64,25 @@ bool PackageStorage::removeTree(const String &p) {
     return FFat.rmdir(p);
 }
 
+// Staging directories are siblings of the live packages rather than children
+// of one staging directory, which keeps publishing a rename within a single
+// directory -- the narrowest thing to ask of FatFs.
+//
+// Names beginning with a dot are ours; refreshPackages() skips them, so a
+// half-uploaded package never shows up as a style, and anything left behind by
+// an upload that a reset interrupted is cleared out here at boot.
 void PackageStorage::begin() {
-    removeTree("/eyes/.staging");
-    FFat.mkdir("/eyes/.staging");
+    // Leftovers from an upload that was interrupted by a reset.
+    removeTree("/eyes/.staging");  // Where staging used to live
+    File root = FFat.open("/eyes");
+    if (!root || !root.isDirectory()) return;
+    for (File entry = root.openNextFile(); entry; entry = root.openNextFile()) {
+        String path = entry.path();
+        String name = path.substring(path.lastIndexOf('/') + 1);
+        bool mine = name.startsWith(".stage-") || name.startsWith(".backup-");
+        entry.close();
+        if (mine) removeTree(path);
+    }
 }
 
 bool PackageStorage::startUpload(const String &id, String &token,
@@ -70,7 +97,7 @@ bool PackageStorage::startUpload(const String &id, String &token,
     snprintf(t, sizeof(t), "%08lX", (unsigned long)r);
     _id = id;
     _token = t;
-    _stage = "/eyes/.staging/" + _token;
+    _stage = "/eyes/.stage-" + _token;
     if (!FFat.mkdir(_stage)) {
         error = "cannot create staging directory";
         cancel();
@@ -102,6 +129,7 @@ bool PackageStorage::beginFile(const String &token, const String &path,
         error = "cannot create staged file";
         return false;
     }
+    _fileBytes = 0;
     return true;
 }
 
@@ -110,7 +138,12 @@ bool PackageStorage::writeFile(const uint8_t *d, size_t n, String &error) {
         error = "upload file is not open";
         return false;
     }
-    if (_file.size() + n > MAX_FILE || _total + n > MAX_PACKAGE) {
+    // Count the bytes rather than asking the file how big it is. The VFS only
+    // re-stats a file once something has been written to it, so a file just
+    // created for writing reports whatever uninitialised stat data its handle
+    // was built with -- hundreds of megabytes, in practice, which failed every
+    // first upload of a session against MAX_FILE and made the second succeed.
+    if (_fileBytes + n > MAX_FILE || _total + n > MAX_PACKAGE) {
         error = "package size limit exceeded";
         _file.close();
         return false;
@@ -120,6 +153,7 @@ bool PackageStorage::writeFile(const uint8_t *d, size_t n, String &error) {
         _file.close();
         return false;
     }
+    _fileBytes += n;
     _total += n;
     return true;
 }
@@ -236,8 +270,11 @@ bool PackageStorage::commit(const String &token, String &e) {
         cancel();
         return false;
     }
+    // Publishing is a rename, and a rename onto a name that already exists
+    // fails, so the package being replaced has to be moved aside first -- and
+    // put back if the publish does not land.
     String live = livePath(_id), backup = "/eyes/.backup-" + _token;
-    bool had = FFat.exists(live);
+    bool had = dirExists(live);
     if (had && !FFat.rename(live, backup)) {
         e = "cannot back up existing package";
         return false;
@@ -251,7 +288,7 @@ bool PackageStorage::commit(const String &token, String &e) {
     _id = "";
     _token = "";
     _stage = "";
-    _total = 0;
+    _total = _fileBytes = 0;
     return true;
 }
 
@@ -261,7 +298,7 @@ void PackageStorage::cancel() {
     _id = "";
     _token = "";
     _stage = "";
-    _total = 0;
+    _total = _fileBytes = 0;
 }
 
 bool PackageStorage::renamePackage(const String &id, const String &n,
@@ -271,11 +308,11 @@ bool PackageStorage::renamePackage(const String &id, const String &n,
         return false;
     }
     String a = livePath(id), b = livePath(n);
-    if (!FFat.exists(a)) {
+    if (!dirExists(a)) {
         e = "package not found";
         return false;
     }
-    if (FFat.exists(b)) {
+    if (dirExists(b)) {
         e = "target already exists";
         return false;
     }
@@ -292,7 +329,7 @@ bool PackageStorage::deletePackage(const String &id, String &e) {
         return false;
     }
     String p = livePath(id);
-    if (!FFat.exists(p)) {
+    if (!dirExists(p)) {
         e = "package not found";
         return false;
     }
