@@ -172,19 +172,26 @@ void showControls(uint32_t now) {
     if (!controlsVisible) {
         sampleBattery();
         controlsDirty = true;
-        // Hand the header and footer rows to the sketch while they are shown.
-        // One eye would otherwise repaint them every frame, and the controls
-        // are only drawn when they change.
-        backend.setReservedRows(56, 40);
     }
     controlsVisible = true;
     controlsUntil = now + 5000;
 }
 
+// How tall the header actually is. It carries a second line only when there
+// is an address or a setup SSID to put there, and the rows below it belong to
+// whatever is behind -- the eye, with one of them.
+int controlsHeaderHeight() {
+    return (web.provisioning() || web.connected()) ? 52 : 28;
+}
+
 void drawControls() {
-    const bool hasStatusLine = web.provisioning() || web.connected();
-    const int headerHeight = hasStatusLine ? 52 : 28;
-    display.fillRect(0, 0, SCREEN_W, 56, monster.screenBackground());
+    const int headerHeight = controlsHeaderHeight();
+    // With two eyes the band down to row 56 is the sketch's either way, so it
+    // is cleared to the background. With one eye the rows below the header are
+    // the eye's, and painting them here would leave a bar of background across
+    // the picture.
+    if (backend.eyeCount() != 1)
+        display.fillRect(0, 0, SCREEN_W, 56, monster.screenBackground());
     display.fillRect(0, 0, SCREEN_W, headerHeight, TFT_DARKGREY);
     display.setTextDatum(TC_DATUM);
     display.setTextColor(TFT_WHITE, TFT_DARKGREY);
@@ -364,6 +371,11 @@ void loop() {
         controlsDirty = controlsVisible;
     }
     if (controlsVisible && int32_t(now - controlsUntil) >= 0) hideControls();
+    // Hand the sketch exactly the rows its controls occupy, before the frame
+    // is drawn. Refreshed every frame rather than at showControls(), because
+    // the header changes height when Wi-Fi connects and the eye should get
+    // those rows back in the same frame.
+    if (controlsVisible) backend.setReservedRows(controlsHeaderHeight(), 40);
     if (monster.style() != lastRenderedStyle) {
         if (lastRenderedStyle != 0xFF) audio.setPackage(monster.configPath());
         lastRenderedStyle = monster.style();
