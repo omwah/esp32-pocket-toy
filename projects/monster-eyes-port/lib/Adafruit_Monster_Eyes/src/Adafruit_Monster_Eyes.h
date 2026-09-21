@@ -52,6 +52,8 @@ struct EyesSettings {
   int slitPupilRadius; ///< Slit pupil radius; 0 round, -1 derives it
   bool slitPupilHorizontal; ///< Lay the slit across the eye: deer, goat, horse
   bool slitPupilRounded;    ///< Blunt the slit's ends instead of pointing them
+  bool texturedPupil;       ///< Fill the pupil from the iris texture's centre
+  float gazeRange;          ///< Fraction of the reachable gaze the eye uses
   float coverage;      ///< Effective, possibly raised by finalize()
   float coverageRequested;   ///< What the sketch or config actually asked for
   uint16_t pupilColor;       ///< Pupil colour, native-endian RGB565
@@ -473,6 +475,42 @@ public:
    * @param degrees Positive rolls eye 0 clockwise on screen.
    * @param eye     Eye index, or -1 for both.
    */
+  /**
+   * @brief Fill the pupil from the iris texture instead of with a flat colour.
+   *
+   * Extension, not in upstream Monster Eyes. The pupil is normally one solid
+   * colour, which is right for an eye that has a hole in the middle of its
+   * iris. It is wrong for a drawn eye whose iris pattern runs all the way to
+   * the centre: there the pupil is not a hole, it is the pattern, and a flat
+   * disc in the middle of it reads as a blot.
+   *
+   * With this on, a pixel inside the pupil takes the innermost row of the iris
+   * texture at its own angle, so the pattern closes over the centre. Dilating
+   * still rescales the texture, so the pattern grows and shrinks as a pupil
+   * does -- which is the point, for an eye where the coloured disc IS the
+   * pupil.
+   *
+   * @param on true to sample the texture, false for the flat pupil colour.
+   */
+  void setTexturedPupil(bool on) { _settings.texturedPupil = on; }
+
+  /**
+   * @brief How far the eye may look, as a fraction of what it could.
+   *
+   * Extension, not in upstream Monster Eyes. The renderer works out the
+   * furthest the iris can travel and uses all of it, which is right for an
+   * eyeball whose sclera is featureless. It is wrong for a drawn eye: there
+   * the iris has a white to stay inside and the artwork has a render box to
+   * stay inside, and a glance to the limit puts one or the other outside.
+   *
+   * Scaling the range keeps the eye looking about without either happening.
+   * It is applied after the renderer's own limits, so it can only ever ask
+   * for less.
+   *
+   * @param fraction 0 to 1; 1 is everything the geometry allows.
+   */
+  void setGazeRange(float fraction) { _settings.gazeRange = fraction; }
+
   void setRoll(float degrees, int eye = -1);
 
   /**

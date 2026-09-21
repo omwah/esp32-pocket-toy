@@ -625,6 +625,11 @@ void Adafruit_Monster_Eyes::applyConfigExtensions(const void *variantPtr) {
   // Cyclovergence: how far the eyes counter-rotate when the gaze is as low as
   // it goes. Behaviour rather than geometry -- it follows where the eye is
   // looking -- so it belongs here and not at the root beside the fixed roll.
+  // How far the eye may look, as a fraction of what the geometry allows. A
+  // drawn eye needs less than all of it: its iris has a white to stay inside.
+  v = animation["gazeRange"];
+  if (v.is<float>() || v.is<int>())
+    _settings.gazeRange = v.as<float>();
   v = animation["cyclovergence"];
   if (v.is<float>() || v.is<int>())
     _settings.cyclovergence = v.as<float>();
@@ -650,6 +655,11 @@ void Adafruit_Monster_Eyes::applyConfigRoot(const void *variantPtr) {
   v = o["slitPupilHorizontal"];
   if (v.is<bool>() || v.is<int>())
     _settings.slitPupilHorizontal = v.as<bool>();
+  // Extension: the pupil filled from the iris texture rather than flat, for a
+  // drawn eye whose pattern runs all the way to the centre.
+  v = o["texturedPupil"];
+  if (v.is<bool>() || v.is<int>())
+    _settings.texturedPupil = v.as<bool>();
   v = o["slitPupilRounded"];
   if (v.is<bool>() || v.is<int>())
     _settings.slitPupilRounded = v.as<bool>();

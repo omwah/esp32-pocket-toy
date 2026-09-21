@@ -60,6 +60,8 @@ void Adafruit_Monster_Eyes::applyDefaults(void) {
   _settings.slitPupilRadius = 0; // Round pupil
   _settings.slitPupilHorizontal = false; // Upright, as a cat's is
   _settings.slitPupilRounded = false;    // Pointed, as a cat's is
+  _settings.texturedPupil = false;       // A flat pupil, as upstream has
+  _settings.gazeRange = 1.0f;            // All the travel the geometry allows
   _settings.coverage = 0.6f;
   _settings.coverageRequested = _settings.coverage;
 
@@ -625,6 +627,10 @@ void Adafruit_Monster_Eyes::gazeRadiusInit(void) {
              _settings.eyeRadius, _size, _size / 2 + 5);
     r = rScreen;
   }
+  // Applied last, so a package can only ever ask for less travel than the
+  // geometry allows -- never for more than the window can show.
+  if (_settings.gazeRange >= 0.0f && _settings.gazeRange < 1.0f)
+    r *= _settings.gazeRange;
   if (r < 1.0f)
     r = 1.0f;
   _gazeRadius = r;
@@ -1115,6 +1121,7 @@ void Adafruit_Monster_Eyes::renderEye(uint8_t e) {
   const int8_t *flowSin = _flowSin;
   const uint8_t *flowPhase = _flowPhase;
   const uint16_t pupilColor = out16(_settings.pupilColor);
+  const bool texturedPupil = _settings.texturedPupil;
   const uint16_t backColor = out16(_settings.backColor);
   const uint16_t eyelidColor = out16(_settings.eyelidColor);
   const uint16_t irisMirror = _variant[e].irisMirror;
@@ -1272,10 +1279,15 @@ void Adafruit_Monster_Eyes::renderEye(uint8_t e) {
         const int ty = (dist * scleraH) >> 7;
         *dst = sclera[ty * scleraW + tx];
       } else if (dist > -128) { // Iris or pupil
-        const int ty = (int)(((uint32_t)(-dist * iPupilFactor)) >> 15);
-        if (ty >= irisH) {
+        int ty = (int)(((uint32_t)(-dist * iPupilFactor)) >> 15);
+        if (ty >= irisH && !texturedPupil) {
           *dst = pupilColor;
         } else {
+          // A textured pupil is the iris texture's innermost row carried over
+          // the middle, so a pattern that runs to the centre closes over it
+          // instead of being cut out by a flat disc.
+          if (ty >= irisH)
+            ty = irisH - 1;
           const int a = ((angle + irisAngle) & 1023) ^ irisMirror;
           const int tx = (a * irisW) >> 10;
           int row = ty;
