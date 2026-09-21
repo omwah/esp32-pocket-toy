@@ -329,6 +329,14 @@ pixels along the eyelid: the lids follow the gaze through a filter, so the eye
 holds still for the last two thirds of the return while they settle; and the
 pupil's dilation is a random walk, so it is pinned for the length of the loop.
 
+**So a GIF never shows the eye dilating.** With an ordinary pupil that is easy
+to miss. With `irisDilation`, where the dilation resizes the whole iris disc,
+it is the difference between an eye that breathes and one that stares: Pomni's
+disc runs 26 to 41 px on screen and sits at 35 in a GIF. Nothing is broken when
+that happens, and `--pupil N` will at least hold it at a size of your choosing.
+Letting it wander and leading it home over the last frames, the way the gaze is
+handled, would fix it properly and has not been done.
+
 `--gaze-tour N` instead walks the gaze round a circle every N frames, which
 gives a shorter file and a tidier motion at the cost of the eye's own
 behaviour. A circuit repeats, so the ordinary search finds the loop:
