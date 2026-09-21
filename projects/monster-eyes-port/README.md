@@ -228,11 +228,18 @@ oval. Its height is not set directly: `pupilMax` picks which contour of the
 morph from iris circle to bar the pupil edge lands on, so thinning the bar
 means lowering it.
 
-Colours are read off photographs of a sika doe and a red deer as a profile
-down through the eye: a nearly black limbal ring, brown through the body of
-the iris, and warmer tones below where the light falls. The pupil is
+Colours are read off photographs of a sika doe and a red deer. The pupil is
 photographed as a dark blue-grey rather than black. Deer sclera is brown and
 barely shows, so it is near black.
+
+The iris used to be that flat brown with stripes of angular noise over it,
+which read as a sunburst: a stripe of constant width running the whole depth of
+the iris is not what a fibre looks like. It is now built by the same
+feature-agglomeration model as the goat -- see `tools/README.md` -- with
+coarser, fewer fibres, a weaker collarette and shallower crypts, because a
+deer's iris is smoother and less combed than a goat's. It keeps its even
+lighting: no darkening towards the rim and no shading from one side to the
+other, which reads well on an eye this dark.
 
 The eyelids are generated as well. The opening is an ellipse, which has a
 vertical tangent at each corner, so the lids meet there roundly and the eye

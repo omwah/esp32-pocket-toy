@@ -7,3 +7,5 @@ projects/uncanny-eyes/data/
 projects/monster-eyes-port/generated/*
 !projects/monster-eyes-port/generated/.gitkeep
 projects/monster-eyes-port/sim/build/
+__pycache__/
+*.pyc

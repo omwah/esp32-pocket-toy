@@ -29,11 +29,12 @@ itself, which carries the same directional grain. And the paper works on an
 unwrapped image of a photographed eye, where this works in the texture space
 the renderer samples, so nothing has to be unwrapped or rewrapped.
 
-tools/make_goat_eye.py is the worked example. tools/make_deer_eye.py and
-tools/make_sauron_eye.py predate this module and carry their own copies of the
-helpers; they are left alone deliberately, because regenerating their artwork
-to prove a refactor would change bitmaps that are already shipped and
-validated. New packages should import this.
+tools/make_goat_eye.py is the worked example, and tools/make_deer_eye.py the
+second user: the same model draws both, with parameters that say what a deer's
+iris has that a goat's does not. tools/make_sauron_eye.py still carries its own
+copy of the helpers, deliberately -- its fire is drawn rather than grown, so
+none of the anatomy here applies to it, and regenerating it to prove a refactor
+would change a bitmap that is already shipped and validated.
 """
 
 import struct

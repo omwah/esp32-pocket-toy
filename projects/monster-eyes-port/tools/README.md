@@ -11,11 +11,12 @@ python projects/monster-eyes-port/tools/make_sauron_eye.py
 ```
 
 `tools/eye_textures.py` is the shared module. `make_goat_eye.py` is the worked
-example of using it, and is the one to copy when starting a new package.
-`make_deer_eye.py` and `make_sauron_eye.py` predate the module and carry their
-own copies of the helpers; they are deliberately left alone, because
-regenerating their artwork to prove a refactor would change bitmaps that are
-already shipped and validated.
+example of using it, and is the one to copy when starting a new package;
+`make_deer_eye.py` uses it too, with parameters of its own. `make_pomni_eye.py`
+takes only the plumbing -- the BMP writers and the eyelids -- because a drawn
+cartoon eye has no anatomy to synthesise. `make_sauron_eye.py` still carries
+its own copy of the helpers, for the same reason and because regenerating it to
+prove a refactor would change a bitmap that is already shipped and validated.
 
 ## Texture space
 
