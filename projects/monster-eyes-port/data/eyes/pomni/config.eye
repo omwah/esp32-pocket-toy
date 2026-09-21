@@ -23,7 +23,13 @@
   "irisDilation": true,
   // Which makes these the smallest and largest the disc gets, as fractions of
   // irisRadius, rather than the pupil's share of the iris.
-  "pupilMin": 0.78,
+  //
+  // The range has to be generous to read as movement: the dilation animator
+  // is fractal noise that mostly stays near the middle of whatever range it
+  // is given, so it reaches neither end often. Measured over 400 frames,
+  // 0.78 to 1.00 moved the disc by a tenth -- invisible -- where this moves it
+  // by half, 24 px across to 35.
+  "pupilMin": 0.45,
   "pupilMax": 1.00,
 
   // The panel background and the lids are her face, so a blink reads as skin
@@ -48,7 +54,7 @@
       // eye's square, which then writes its own background over it and leaves
       // a straight vertical cut. Overlapping by twelve did exactly that in 46
       // frames out of 250.
-      "eyeGap": -6
+      "eyeGap": -2
     },
     "animation": {
       "autoGaze": true,
@@ -62,7 +68,7 @@
       // where the squares overlap one eye writes its background over the
       // other's outline. Measured over 600 frames, this leaves 5 px between
       // the drawing and its square and never touches the seam.
-      "gazeRange": 0.30
+      "gazeRange": 0.47
     }
   },
 
