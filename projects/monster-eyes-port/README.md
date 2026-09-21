@@ -138,6 +138,12 @@ The corresponding local-network API endpoints are:
 - `POST /api/packages/rename`
 - `POST /api/packages/delete`
 
+`tools/upload_package.py <device-ip> <package>` does the start/file/commit
+sequence from the command line. It paces its writes: the web server is polled
+from the render loop and drains a socket in bursts between frames, so a whole
+texture handed over in one write resets the connection, where the same bytes
+sent in 4 KiB pieces go through in a few seconds.
+
 Package files are limited to 1 MiB each and 3 MiB per staged package. Uploads
 accept `config.eye`, 24-bit uncompressed texture BMPs, 1-bit uncompressed eyelid
 BMPs, and PCM WAV files.
