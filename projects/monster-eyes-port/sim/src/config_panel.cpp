@@ -196,29 +196,20 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
   const EyesSettings &now = defaults;
   bool changed = false;
 
-  if (ImGui::CollapsingHeader("Geometry and pupil",
-                              ImGuiTreeNodeFlags_DefaultOpen)) {
-    sectionNote("Eyeball and pupil sizes, in config pixels not screen.");
+  if (ImGui::CollapsingHeader("Geometry", ImGuiTreeNodeFlags_DefaultOpen)) {
+    sectionNote("Eyeball and iris sizes, in config pixels not screen.");
     changed |= intRow(doc, "eyeRadius", "eyeRadius", now.eyeRadius, 0, 250,
                       "Eyeball radius, 0 to derive it. In the config's own "
                       "pixel space, which begin() rescales to the display.");
     changed |= intRow(doc, "irisRadius", "irisRadius", now.irisRadius, 0, 250,
                       "Iris radius in the config's own pixel space; 0 derives "
                       "it.");
-    changed |= intRow(doc, "slitPupilRadius", "slitPupilRadius",
-                      now.slitPupilRadius, -1, 250,
-                      "0 for a round pupil, -1 to derive it, or the slit "
-                      "length in pixels.");
     changed |= intRow(doc, "displaySize", "displaySize", now.displaySize, 0, 240,
                       "Eye width and height in pixels; 0 fills the display.");
     changed |= floatRow(doc, "coverage", "coverage", now.coverageRequested,
                         0.0f, 1.5f, "%.3f",
                         "How much of the eyeball the display shows. "
                         "begin() may raise it to fit.");
-    changed |= floatRow(doc, "pupilMin", "pupilMin", now.pupilMin, 0.0f, 1.0f,
-                        "%.3f", "Smallest pupil as a fraction of the iris.");
-    changed |= floatRow(doc, "pupilMax", "pupilMax", now.pupilMax, 0.0f, 1.0f,
-                        "%.3f", "Largest pupil as a fraction of the iris.");
     changed |= intRow(doc, "fixate", "fixate", now.fixate, -60, 60,
                       "Convergence toward the face, in map pixels.");
     changed |= boolRow(doc, "tracking", "tracking", now.tracking,
@@ -235,6 +226,18 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
                         "with tracking off. Raising it lowers the upper lid "
                         "and drops the lower with it, scaled by irisRadius.");
     ImGui::EndDisabled();
+  }
+
+  if (ImGui::CollapsingHeader("Pupil", ImGuiTreeNodeFlags_DefaultOpen)) {
+    sectionNote("Its shape, and how far it opens and closes.");
+    changed |= intRow(doc, "slitPupilRadius", "slitPupilRadius",
+                      now.slitPupilRadius, -1, 250,
+                      "0 for a round pupil, -1 to derive it, or the slit "
+                      "length in pixels.");
+    changed |= floatRow(doc, "pupilMin", "pupilMin", now.pupilMin, 0.0f, 1.0f,
+                        "%.3f", "Smallest pupil as a fraction of the iris.");
+    changed |= floatRow(doc, "pupilMax", "pupilMax", now.pupilMax, 0.0f, 1.0f,
+                        "%.3f", "Largest pupil as a fraction of the iris.");
     changed |= boolRow(doc, "slitPupilHorizontal*", "slitPupilHorizontal",
                        now.slitPupilHorizontal,
                        "Lay the slit on its side." EXTENSION_NOTE);

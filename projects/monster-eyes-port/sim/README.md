@@ -121,7 +121,7 @@ right and down to make room.
 ./sim/build/eye-sim --eye hazel --panel --panel-width 460
 ```
 
-It is grouped as geometry and pupil, display, colours, animation, rotation and
+It is grouped as geometry, pupil, display, colours, animation, rotation and
 iris flow. Within each section the extensions -- the settings marked with a
 star, which a stock Monster Eyes package will not understand -- come last, so
 what upstream has is what you read first.

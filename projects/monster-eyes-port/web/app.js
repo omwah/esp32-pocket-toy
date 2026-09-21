@@ -265,23 +265,17 @@ const EXT = ' *Extension, not in upstream Monster Eyes.';
 
 var CONFIG_SECTIONS = [
   {
-    title: 'Geometry and pupil',
-    note: 'Eyeball and pupil sizes, in config pixels not screen.',
+    title: 'Geometry',
+    note: 'Eyeball and iris sizes, in config pixels not screen.',
     rows: [
       { key: 'eyeRadius', type: 'int', min: 0, max: 250, def: 0,
         help: "Eyeball radius, 0 to derive it. In the config's own pixel space, which begin() rescales to the display." },
       { key: 'irisRadius', type: 'int', min: 0, max: 250, def: 0,
         help: "Iris radius in the config's own pixel space; 0 derives it." },
-      { key: 'slitPupilRadius', type: 'int', min: -1, max: 250, def: 0,
-        help: '0 for a round pupil, -1 to derive it, or the slit length in pixels.' },
       { key: 'displaySize', type: 'int', min: 0, max: 240, def: 0,
         help: 'Eye width and height in pixels; 0 fills the display.' },
       { key: 'coverage', type: 'float', min: 0, max: 1.5, step: 0.001, def: 0.6,
         help: 'How much of the eyeball the display shows. begin() may raise it to fit.' },
-      { key: 'pupilMin', type: 'float', min: 0, max: 1, step: 0.001, def: 0.05,
-        help: 'Smallest pupil as a fraction of the iris.' },
-      { key: 'pupilMax', type: 'float', min: 0, max: 1, step: 0.001, def: 0.25,
-        help: 'Largest pupil as a fraction of the iris.' },
       { key: 'fixate', type: 'int', min: -60, max: 60, def: 7,
         help: 'Convergence toward the face, in map pixels.' },
       { key: 'tracking', type: 'bool', def: true,
@@ -289,7 +283,19 @@ var CONFIG_SECTIONS = [
       // Squint is the resting offset of that tracking and is read nowhere
       // else, so it is inert while tracking is off rather than merely subtle.
       { key: 'squint', type: 'float', min: 0, max: 1, step: 0.001, def: 0.5, needs: 'tracking',
-        help: 'Where the lids rest while they track the gaze; inert with tracking off. Raising it lowers the upper lid and drops the lower with it, scaled by irisRadius.' },
+        help: 'Where the lids rest while they track the gaze; inert with tracking off. Raising it lowers the upper lid and drops the lower with it, scaled by irisRadius.' }
+    ]
+  },
+  {
+    title: 'Pupil',
+    note: 'Its shape, and how far it opens and closes.',
+    rows: [
+      { key: 'slitPupilRadius', type: 'int', min: -1, max: 250, def: 0,
+        help: '0 for a round pupil, -1 to derive it, or the slit length in pixels.' },
+      { key: 'pupilMin', type: 'float', min: 0, max: 1, step: 0.001, def: 0.05,
+        help: 'Smallest pupil as a fraction of the iris.' },
+      { key: 'pupilMax', type: 'float', min: 0, max: 1, step: 0.001, def: 0.25,
+        help: 'Largest pupil as a fraction of the iris.' },
       { key: 'slitPupilHorizontal', type: 'bool', def: false, ext: true,
         help: 'Lay the slit on its side.' + EXT },
       { key: 'slitPupilRounded', type: 'bool', def: false, ext: true,
