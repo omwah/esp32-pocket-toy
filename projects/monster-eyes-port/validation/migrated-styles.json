@@ -6,7 +6,7 @@
     {"id":"hazel","production":"Hazel","status":"pass","notes":"Standard Monster Eyes package."},
     {"id":"dragon","production":"Dragon","status":"pass","notes":"Converted artwork; standard vertical slit."},
     {"id":"no_sclera","production":"No Sclera","status":"pass","notes":"Converted artwork."},
-    {"id":"goat","production":"Goat / Krampus","status":"pass","notes":"Converted artwork; standard slit orientation accepted."},
+    {"id":"goat","production":"Goat / Krampus","status":"pass","notes":"Artwork regenerated from photographs by tools/make_goat_eye.py; the migrated package had a vertical slit and a grey-blue iris, and a goat has neither."},
     {"id":"newt","production":"Newt","status":"pass","notes":"Converted artwork; standard vertical slit."},
     {"id":"terminator","production":"Terminator","status":"pass","notes":"Converted artwork and CC0 sound."},
     {"id":"cat","production":"Cartoon Cat","status":"pass","notes":"Converted artwork; standard vertical slit."},

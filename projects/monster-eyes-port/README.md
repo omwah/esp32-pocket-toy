@@ -190,6 +190,61 @@ Their closed edges are arcs rather than straight lines, because the renderer
 interpolates lid shape between open and closed on every frame and a flat lid
 closes like a shutter.
 
+## The goat package
+
+`data/eyes/goat` is generated too, for the same reason the deer package is:
+what it carried before was a cat's eye under another name -- a vertical slit
+in a grey-blue iris, neither of which a goat has.
+
+```sh
+python projects/monster-eyes-port/tools/make_goat_eye.py
+```
+
+It is the worked example for `tools/eye_textures.py`, the shared artwork
+module, and the script to copy when generating a package of your own.
+
+The pupil is the feature that says goat: a wide horizontal bar with blunt ends
+(`slitPupilHorizontal` and `slitPupilRounded`), reaching most of the way across
+the iris, which is what separates it from the deer's shorter oval. As with the
+deer, its height comes from `pupilMax` rather than being set directly.
+
+Colours are read off photographs of domestic goats: light brown through the
+body of the iris, browner towards a distinct dark limbal ring. The base is
+duller than the raw mid-iris sample on purpose, because the fibres put the
+light back and a base that starts at the measured value ends up reading as
+yellow. The lid shades the upper third a stop darker. There is effectively no
+white -- the globe is iris nearly edge to edge -- so the sclera is near black
+with a brown cast. The pupil is flatly black.
+
+The fibre pattern follows a published model rather than an invented one: Shah
+and Ross, *Generating Synthetic Irises by Feature Agglomeration* (ICIP 2006),
+with Lefohn et al., *An Ocularist's Approach to Human Iris Synthesis* (IEEE
+CG&A 2003), for the layered view of an eye. The implementation is shared, in
+`tools/eye_textures.py`; **`tools/README.md` documents the model, every
+parameter, and how to start a new package from it**.
+
+Where the top of the eye falls along the texture's angular axis was measured
+rather than assumed: a band painted at 0.25 came out on the right of the
+rendered eye and one at 0.75 on the left, so the top is 0.0.
+
+The eyelids are generated as the deer's are, an elliptical opening with
+`tracking` off, and give the eye its wide, flat oval.
+
+The iris is deliberately smaller than the eyeball (100 against 125) so the eye
+has somewhere to travel when it looks around. Filling the eyeball looked right
+in a still frame and moved the pupil one pixel over 150 frames: with a bar
+pupil spanning the iris there is nothing left to see move. The lid opening was
+narrowed to match (0.86 of the half-width), so the spare sclera does not show
+as a dark band down each side at rest -- it appears as a dark corner only when
+the eye actually looks that way, which is what the photographs show.
+
+`gazeMax` is raised to five seconds because a goat holds its gaze and turns its
+head. Its one dramatic eye movement is not lateral at all: each eye
+counter-rotates about its own optic axis by 50 degrees or more as the head goes
+down to graze, keeping the slit level with the horizon. The package asks for
+that with `extensions.animation.cyclovergence: 50`, which the renderer ties to
+downward gaze, since a head is the one thing this toy has not got.
+
 ## The Eye of Sauron package
 
 `data/eyes/sauron` is an original package rather than a migrated style. Its
