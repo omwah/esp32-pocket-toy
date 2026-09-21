@@ -68,6 +68,8 @@ struct EyesSettings {
   float scleraSpin;          ///< Sclera rotation in RPM
   uint16_t irisStartAngle;   ///< Initial iris rotation, 0-1023 CCW
   uint16_t scleraStartAngle; ///< Initial sclera rotation, 0-1023 CCW
+  float roll;                ///< Eyeball roll about the optic axis, degrees
+  float cyclovergence;       ///< Extra roll at full downward gaze, degrees
   // Radial flow: waves travelling out through the iris texture. Rather than
   // moving the texture, each pixel is sampled a little nearer or further from
   // the pupil than it sits, so what was drawn at one depth in the texture
@@ -98,6 +100,8 @@ struct EyesSettings {
 struct EyesVariant {
   float irisSpin;            ///< Iris rotation in RPM for this eye
   float scleraSpin;          ///< Sclera rotation in RPM for this eye
+  float roll;                ///< Eyeball roll for this eye, degrees
+  float cyclovergence;       ///< Extra roll at full downward gaze, this eye
   uint16_t irisStartAngle;   ///< Initial iris rotation, 0-1023 CCW
   uint16_t scleraStartAngle; ///< Initial sclera rotation, 0-1023 CCW
   uint16_t irisMirror;       ///< 0 or 1023; 1023 mirrors the iris
@@ -453,6 +457,37 @@ public:
    * @param eye Eye index, or -1 for both.
    */
   void setScleraSpin(float rpm, int eye = -1);
+
+  /**
+   * @brief Roll the eyeball about its own optic axis (cyclovergence).
+   *
+   * Extension, not in upstream Monster Eyes. A grazing animal counter-rotates
+   * its eyes as its head goes down, by 50 degrees or more in a goat, keeping
+   * the slit pupil level with the horizon. The two eyes turn opposite ways,
+   * so with two eyes showing, eye 0 takes the angle and eye 1 its negation --
+   * the same mirroring the iris spin and start angle already get.
+   *
+   * The whole eyeball turns: pupil, iris and sclera together. The eyelids do
+   * not, because in life the globe rotates inside them.
+   *
+   * @param degrees Positive rolls eye 0 clockwise on screen.
+   * @param eye     Eye index, or -1 for both.
+   */
+  void setRoll(float degrees, int eye = -1);
+
+  /**
+   * @brief Roll the eyes as the gaze goes down, as a grazing animal does.
+   *
+   * Extension, not in upstream Monster Eyes. Real cyclovergence follows the
+   * head, and there is no head here, so the gaze stands in for it: looking
+   * down is the grazing posture, and the eyes counter-rotate in proportion,
+   * reaching @p degrees when the gaze is as low as it goes. Looking level or
+   * up leaves them level, so the eye only does this when it would in life.
+   *
+   * @param degrees Roll at full downward gaze; the two eyes take opposite
+   *                angles, as with setRoll().
+   */
+  void setCyclovergence(float degrees);
 
   /**
    * @brief Longest wait between major eye movements.

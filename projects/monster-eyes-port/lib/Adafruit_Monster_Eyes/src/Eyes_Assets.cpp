@@ -622,9 +622,16 @@ void Adafruit_Monster_Eyes::applyConfigExtensions(const void *variantPtr) {
   v = animation["autoBlink"];
   if (v.is<bool>() || v.is<int>())
     _autoBlink = v.as<bool>();
+  // Cyclovergence: how far the eyes counter-rotate when the gaze is as low as
+  // it goes. Behaviour rather than geometry -- it follows where the eye is
+  // looking -- so it belongs here and not at the root beside the fixed roll.
+  v = animation["cyclovergence"];
+  if (v.is<float>() || v.is<int>())
+    _settings.cyclovergence = v.as<float>();
 
-  EYES_DBG("Animation: autoGaze %s, autoBlink %s\n", _autoGaze ? "on" : "off",
-           _autoBlink ? "on" : "off");
+  EYES_DBG("Animation: autoGaze %s, autoBlink %s, cyclovergence %.1f deg\n",
+           _autoGaze ? "on" : "off", _autoBlink ? "on" : "off",
+           (double)_settings.cyclovergence);
 }
 
 void Adafruit_Monster_Eyes::applyConfigRoot(const void *variantPtr) {
@@ -690,6 +697,11 @@ void Adafruit_Monster_Eyes::applyConfigRoot(const void *variantPtr) {
   v = o["scleraSpin"];
   if (v.is<float>() || v.is<int>())
     _settings.scleraSpin = v.as<float>();
+  // Extension: cyclovergence, the eyeball rolled about its own optic axis.
+  // The two eyes take opposite angles, which seedVariants() applies.
+  v = o["roll"];
+  if (v.is<float>() || v.is<int>())
+    _settings.roll = v.as<float>();
 
   v = o["irisFlow"];
   if (v.is<float>() || v.is<int>())
@@ -743,6 +755,11 @@ void Adafruit_Monster_Eyes::applyConfigVariant(const void *variantPtr,
   x = o["scleraSpin"];
   if (x.is<float>() || x.is<int>())
     v.scleraSpin = x.as<float>();
+  // Per-eye roll wins over the mirrored pair, for an eye that should sit at
+  // its own angle rather than the opposite of the other's.
+  x = o["roll"];
+  if (x.is<float>() || x.is<int>())
+    v.roll = x.as<float>();
   x = o["irisAngle"];
   if (x.is<int>())
     v.irisStartAngle = 1023 - (x.as<int>() & 1023);

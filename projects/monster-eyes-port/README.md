@@ -20,6 +20,19 @@ Wi-Fi, and overlays reach feature parity with the production application.
   instead of bringing them to a point -- between them, the bar a deer, goat or
   horse has rather than the lens a cat has. The slit radius is measured along
   the slit whichever way it lies.
+- Extends the renderer with `roll`, turning the whole eyeball about its own
+  optic axis: pupil, iris and sclera together, with the eyelids left where they
+  are, because in life the globe rotates inside them. The two eyes take
+  opposite angles, which is what a grazing animal does as its head goes down --
+  a goat counter-rotates each eye by 50 degrees or more to keep its slit pupil
+  level with the horizon. The map is sampled through the rotation rather than
+  rebuilt, so it costs two multiplies a pixel and nothing at all when the eye
+  is level.
+- Adds `extensions.animation.cyclovergence`, which rolls the eyes as the gaze
+  goes down and leaves them level looking ahead or up. Real cyclovergence
+  follows the head and there is no head here, so the gaze stands in for it:
+  looking down is the grazing posture. The value is the angle at full downward
+  gaze.
 - Discovers package directories under `/eyes`; eye names and paths are not
   compiled into firmware.
 - Resolves package-relative asset paths and reconstructs the renderer safely

@@ -126,6 +126,19 @@ iris flow.
 Texture paths and the per-eye `left`/`right` blocks are not exposed; edit those
 in the file.
 
+The Rotation section ends with `roll`, which turns the whole eyeball about its
+own optic axis rather than spinning a texture within it: pupil, iris and sclera
+go round together and the lids stay put. With two eyes showing they roll
+opposite ways, which is the cyclovergence a goat or a horse uses to keep its
+slit pupil level as its head goes down to graze. A per-eye `roll` in the
+`left`/`right` blocks overrides the mirrored pair.
+
+`cyclovergence`, at the end of the Animation section, is the same rotation
+driven by the gaze instead of held fixed: the eyes roll as the gaze goes down
+and sit level looking ahead or up, the value being the angle at full downward
+gaze. It is behaviour rather than geometry, which is why it lives with the
+animators and writes `extensions.animation.cyclovergence`.
+
 The Animation section writes `extensions.animation.autoGaze` and `autoBlink`,
 which hold the eye still or stop it blinking, and carries `gazeMax` alongside
 them since that is how long the eye waits between movements. Those are read by the renderer,

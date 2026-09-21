@@ -1,6 +1,11 @@
 /**
  * @file config_panel.cpp
  * @brief The config.eye document, and the ImGui panel that edits it.
+ *
+ * The device's web interface has an "Eye config" tab that is a hand-written
+ * copy of this panel: the same sections in the same order, the same controls
+ * in each, and the same help text. The two are meant to match, so an edit here
+ * belongs in web/app.js (CONFIG_SECTIONS) as well.
  */
 
 #include "config_panel.h"
@@ -300,10 +305,25 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
     changed |= extBoolRow(doc, "autoBlink*", "animation", "autoBlink", true,
                           "Let the eye blink on its own. Off means it never "
                           "blinks." EXTENSION_NOTE);
+    // Behaviour rather than geometry: it follows the gaze, so it sits with
+    // the animators and not with the fixed roll in Rotation.
+    {
+      float value = doc.getExtFloat("animation", "cyclovergence",
+                                    now.cyclovergence);
+      if (ImGui::SliderFloat("cyclovergence*", &value, 0.0f, 90.0f,
+                             "%.1f deg")) {
+        doc.setExtFloat("animation", "cyclovergence", value);
+        changed = true;
+      }
+      noteHelp("Roll the eyes as the gaze goes down, the way a grazing animal "
+               "keeps its slit level with the horizon while its head is "
+               "lowered. This is the angle at full downward gaze; looking "
+               "level or up leaves the eyes level." EXTENSION_NOTE);
+    }
   }
 
   if (ImGui::CollapsingHeader("Rotation")) {
-    sectionNote("Spins the iris and sclera textures in place.");
+    sectionNote("Rolls the whole eyeball, and spins its textures in place.");
     changed |= floatRow(doc, "irisSpin", "irisSpin", now.irisSpin, -30.0f,
                         30.0f, "%.2f rpm",
                         "Turn the iris texture continuously. Positive is "
@@ -325,6 +345,13 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
                        "detail runs.");
     changed |= boolRow(doc, "scleraMirror", "scleraMirror",
                        now.scleraMirror != 0, "Mirror the sclera texture.");
+    changed |= floatRow(doc, "roll*", "roll", now.roll, -90.0f, 90.0f,
+                        "%.1f deg",
+                        "Roll the eyeball about its own optic axis. The two "
+                        "eyes take opposite angles, as a grazing animal's do "
+                        "when its head goes down and it keeps the slit level "
+                        "with the horizon. Pupil, iris and sclera turn "
+                        "together; the lids do not." EXTENSION_NOTE);
   }
 
   if (ImGui::CollapsingHeader("Iris flow")) {

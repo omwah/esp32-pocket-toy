@@ -76,6 +76,8 @@ void Adafruit_Monster_Eyes::applyDefaults(void) {
   _settings.gazeMax = 3000000;
   _settings.irisSpin = 0.0f;
   _settings.scleraSpin = 0.0f;
+  _settings.roll = 0.0f;          // Eyes level, the everyday posture
+  _settings.cyclovergence = 0.0f; // And level however far down it looks
   _settings.irisFlow = 0.0f; // Off: the texture is sampled where it sits
   _settings.irisFlowSpeed = 1.0f;
   _settings.irisFlowWaves = 2.0f;
@@ -174,6 +176,10 @@ void Adafruit_Monster_Eyes::fail(const char *why) {
 static void applyRightEyeOrientation(EyesVariant &v) {
   v.irisSpin = -v.irisSpin;
   v.scleraSpin = -v.scleraSpin;
+  // Cyclovergence is opposite in the two eyes, which is the same mirroring
+  // the spins already get rather than a special case.
+  v.roll = -v.roll;
+  v.cyclovergence = -v.cyclovergence;
   v.irisStartAngle = (uint16_t)((v.irisStartAngle + 512) & 1023);
   v.eyelidMirror = !v.eyelidMirror;
 }
@@ -183,6 +189,8 @@ void Adafruit_Monster_Eyes::seedVariants(void) {
     EyesVariant &v = _variant[e];
     v.irisSpin = _settings.irisSpin;
     v.scleraSpin = _settings.scleraSpin;
+    v.roll = _settings.roll;
+    v.cyclovergence = _settings.cyclovergence;
     v.irisStartAngle = _settings.irisStartAngle;
     v.scleraStartAngle = _settings.scleraStartAngle;
     v.irisMirror = _settings.irisMirror;
@@ -368,6 +376,23 @@ void Adafruit_Monster_Eyes::setPupilRange(float minFrac, float maxFrac) {
     _irisMin = 1.0f - _settings.pupilMax;
     _irisRange = _settings.pupilMax - _settings.pupilMin;
   }
+}
+
+void Adafruit_Monster_Eyes::setRoll(float degrees, int eye) {
+  if (eye < 0) {
+    _settings.roll = degrees;
+    for (int e = 0; e < _numEyes; e++)
+      _variant[e].roll = ((_numEyes > 1) && (e == 0)) ? -degrees : degrees;
+  } else if (eye < _numEyes) {
+    _variant[eye].roll = degrees;
+  }
+}
+
+void Adafruit_Monster_Eyes::setCyclovergence(float degrees) {
+  _settings.cyclovergence = degrees;
+  for (int e = 0; e < _numEyes; e++)
+    _variant[e].cyclovergence =
+        ((_numEyes > 1) && (e == 0)) ? -degrees : degrees;
 }
 
 void Adafruit_Monster_Eyes::setIrisSpin(float rpm, int eye) {
@@ -1100,6 +1125,27 @@ void Adafruit_Monster_Eyes::renderEye(uint8_t e) {
   const int8_t *polarDist = _polarDist;
   const int mapRadius = _mapRadius, mapDiameter = _mapDiameter;
 
+  // Cyclovergence: the eyeball turned about its own optic axis. The map is
+  // sampled through a rotation about its centre, which turns pupil, iris and
+  // sclera together and leaves the lids alone -- in life the globe rotates
+  // inside them. Q15 fixed point, because this runs per pixel; the whole
+  // branch is skipped when the eye is level, which is the usual case.
+  // Cyclovergence follows the gaze down: level looking ahead or up, the full
+  // angle looking as low as the eye goes. gazeY() is positive downwards.
+  float rollDeg = _variant[e].roll;
+  if (_variant[e].cyclovergence != 0.0f) {
+    const float down = gazeY();
+    if (down > 0.0f)
+      rollDeg += _variant[e].cyclovergence * (down > 1.0f ? 1.0f : down);
+  }
+  const bool rolled = rollDeg != 0.0f;
+  // Negated because the map is sampled, not drawn: turning the sampling one
+  // way turns what comes out the other. Positive is clockwise on screen,
+  // matching irisSpin.
+  const float rollRad = -rollDeg * (float)M_PI / 180.0f;
+  const int32_t rollSin = rolled ? (int32_t)(sinf(rollRad) * 32768.0f) : 0;
+  const int32_t rollCos = rolled ? (int32_t)(cosf(rollRad) * 32768.0f) : 32768;
+
   for (int x = 0; x < size; x++) {
     const int lidColumn = mirrorLids ? (size - 1 - x) : x;
 
@@ -1175,6 +1221,15 @@ void Adafruit_Monster_Eyes::renderEye(uint8_t e) {
       dx *= xmul;
       int mx = xx + dx;
       int my = yy + dy;
+
+      if (rolled) {
+        // Rotate about the centre of the map, which is where the pupil sits.
+        // Gaze has already moved the window over the map, so the eye rolls
+        // around wherever it happens to be looking, as a real one does.
+        const int32_t cx = mx - mapRadius, cy = my - mapRadius;
+        mx = mapRadius + (int)((cx * rollCos - cy * rollSin) >> 15);
+        my = mapRadius + (int)((cx * rollSin + cy * rollCos) >> 15);
+      }
 
       if ((mx < 0) || (mx >= mapDiameter) || (my < 0) || (my >= mapDiameter)) {
         *dst = backColor; // Off the map

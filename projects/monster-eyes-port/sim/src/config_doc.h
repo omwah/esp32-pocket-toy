@@ -95,6 +95,17 @@ public:
    * @param value   Value.
    */
   void setExtBool(const char *feature, const char *key, bool value);
+
+  /** @brief Read extensions.<feature>.<key> as a number.
+   *  @param feature Extension block. @param key Key within it.
+   *  @param inForce Value to report when the key is absent.
+   *  @return The stored value, or @p inForce. */
+  float getExtFloat(const char *feature, const char *key, float inForce) const;
+
+  /** @brief Write extensions.<feature>.<key> as a number.
+   *  @param feature Extension block. @param key Key within it.
+   *  @param value Value to store. */
+  void setExtFloat(const char *feature, const char *key, float value);
   /**
    * @brief Read a string out of extensions.<feature>.
    * @param feature Extension block name.
