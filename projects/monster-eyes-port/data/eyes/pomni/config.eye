@@ -49,7 +49,11 @@
     },
     "animation": {
       "autoGaze": true,
-      "autoBlink": true,
+      // Pomni's stare is the joke. She does blink on the show, but a blink
+      // here is her own skin colour coming down over the eye, which on a panel
+      // showing nothing but two eyes reads as them vanishing rather than as a
+      // blink.
+      "autoBlink": false,
       // Less than the geometry allows. At full travel the pinwheel slides out
       // of its own white, the drawing reaches the edge of its own square, and
       // where the squares overlap one eye writes its background over the
