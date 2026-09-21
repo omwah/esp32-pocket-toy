@@ -181,6 +181,10 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
   ImGui::TextDisabled(doc.dirty() ? "(edited)" : "(unchanged)");
   ImGui::Separator();
 
+  // Every section opens by default. The panel is beside the eye on a desktop
+  // screen and scrolls, so the cost of showing everything is a scroll; the web
+  // tab starts shut instead, because there it is the whole page on a phone.
+  //
   // The controls scroll; the save controls stay put at the foot. The help text
   // is not here at all -- it goes in a strip under the preview, where there is
   // room for it.
@@ -372,7 +376,7 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
     }
   }
 
-  if (ImGui::CollapsingHeader("Rotation")) {
+  if (ImGui::CollapsingHeader("Rotation", ImGuiTreeNodeFlags_DefaultOpen)) {
     sectionNote("Rolls the whole eyeball, and spins its textures in place.");
     changed |= floatRow(doc, "irisSpin", "irisSpin", now.irisSpin, -30.0f,
                         30.0f, "%.2f rpm",
@@ -404,7 +408,7 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
                         "together; the lids do not." EXTENSION_NOTE);
   }
 
-  if (ImGui::CollapsingHeader("Iris flow")) {
+  if (ImGui::CollapsingHeader("Iris flow", ImGuiTreeNodeFlags_DefaultOpen)) {
     sectionNote("Iris creeps along a moving wave, without turning.");
     changed |= floatRow(doc, "irisFlow*", "irisFlow", now.irisFlow, 0.0f, 1.0f,
                         "%.3f",
