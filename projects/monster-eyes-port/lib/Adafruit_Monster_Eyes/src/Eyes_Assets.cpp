@@ -904,9 +904,17 @@ bool Adafruit_Monster_Eyes::mediaLoad(int size, uint32_t texBudget) {
   loadOneEyelid(_settings.upperFile, _upperOpen, _upperClosed, size, true);
   loadOneEyelid(_settings.lowerFile, _lowerOpen, _lowerClosed, size, false);
 
+  // An eyeball's sclera is flat white and needs nothing, which is why the
+  // share is small. A DRAWN eye is the exception: its outline and lashes have
+  // to live in the sclera, because the sclera is the one texture that stays
+  // put on screen -- the eyeball's silhouette does not move, only the iris
+  // slides about inside it -- and an outline that wandered with the gaze
+  // would look like the eye had come off the face. So the ceiling is high
+  // enough for that to be legible, and a package that does not ask for it
+  // still pays nothing: this is a cap, not an allocation.
   uint32_t scleraBudget = texBudget / 8;
-  if (scleraBudget > 4096)
-    scleraBudget = 4096;
+  if (scleraBudget > 32768)
+    scleraBudget = 32768;
 
   // The iris gets the lion's share; the sclera is mostly flat colour anyway.
   struct {
