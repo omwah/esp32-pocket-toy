@@ -61,10 +61,12 @@ Three constraints found by measurement, each with a comment at the relevant code
 
 ## Restoring the factory firmware
 
-`../../hardware/hosyond-es3c28p/factory_backup_16MB.bin` is a full dump of the flash as shipped. This board has
-a single app partition and no OTA slot, so it is the only copy.
+Only possible from a dump taken before the first write: this board has a single
+app partition and no OTA slot, so flashing it leaves no second copy of the stock
+image. `HARDWARE.md` has the commands for taking one. The dump is not in this
+repository -- it is 16 MB and specific to the board it came off.
 
 ```
-esptool --port /dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_44:1B:F6:CE:4E:40-if00 \
-        write-flash 0x0 ../../hardware/hosyond-es3c28p/factory_backup_16MB.bin
+esptool --port /dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_XX:XX:XX:XX:XX:XX-if00 \
+        write-flash 0x0 factory_backup_16MB.bin
 ```

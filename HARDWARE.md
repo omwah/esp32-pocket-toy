@@ -80,22 +80,23 @@ There is no `app1` partition, so there is no OTA slot and no second copy of the
 firmware — overwriting `app0` would destroy the factory firmware with no recovery
 path.
 
-**A full backup has been taken.** The entire 16 MB flash was dumped before any write:
+**Take a full backup before the first write.** Dump the entire 16 MB flash:
 
 ```
-hardware/hosyond-es3c28p/factory_backup_16MB.bin   16777216 bytes
-md5  e39630b4ac323ca3b42ad4f5e0b0cd06
+esptool --port /dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_XX:XX:XX:XX:XX:XX-if00 \
+        --after no-reset read-flash 0x0 0x1000000 factory_backup_16MB.bin
 ```
 
-Restore with:
+and keep it somewhere outside this repository — a 16 MB dump is not something to
+check in, and it is specific to the board it came off anyway. Restore with:
 
 ```
-esptool --port /dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_44:1B:F6:CE:4E:40-if00 \
-        write-flash 0x0 hardware/hosyond-es3c28p/factory_backup_16MB.bin
+esptool --port /dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_XX:XX:XX:XX:XX:XX-if00 \
+        write-flash 0x0 factory_backup_16MB.bin
 ```
 
-87.5% of the flash reads as erased (`0xff`), consistent with a 4 MB partition layout
-on a 16 MB part. Do not delete this file — it is the only copy of the stock firmware.
+On the board this was written against, 87.5% of the flash read as erased (`0xff`),
+consistent with a 4 MB partition layout on a 16 MB part.
 
 ### Stock firmware provenance
 
@@ -425,8 +426,8 @@ human watching the screen are the debugging channel.
 ### Take the flash backup before the first write
 
 This board has a single `app0` partition and no OTA slot, so the factory firmware
-has no second copy. The full 16 MB dump was taken before anything was flashed, and
-it is the only copy that will ever exist. Two practical notes for repeating it:
+has no second copy: once `app0` is written, the stock image is gone unless a dump
+was taken first. Two practical notes for taking it:
 
 - Pass `--after no-reset`. The board re-enumerates on reset, which invalidates the
   open port handle; a long read that ends in the default reset can lose the port

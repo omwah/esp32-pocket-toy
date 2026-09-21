@@ -46,5 +46,7 @@ Build a project from the repository root, for example:
 micromamba run -n platformio pio run -d projects/space-battle -t upload
 ```
 
-Shared board documentation is in [`HARDWARE.md`](HARDWARE.md). The factory firmware backup is in
-[`hardware/hosyond-es3c28p/`](hardware/hosyond-es3c28p/).
+Shared board documentation is in [`HARDWARE.md`](HARDWARE.md), including how to
+back up the stock firmware before the first write. The backup itself is not in
+this repository -- it is a 16 MB flash dump of one particular board, and every
+board needs its own.
