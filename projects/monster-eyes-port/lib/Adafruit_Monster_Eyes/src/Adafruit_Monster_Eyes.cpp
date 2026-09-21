@@ -1115,8 +1115,13 @@ void Adafruit_Monster_Eyes::renderEye(uint8_t e) {
   const int irisH = _irisH, irisW = _irisW;
   const int scleraH = _scleraH, scleraW = _scleraW;
   const uint16_t *iris = _irisData, *sclera = _scleraData;
-  const int iPupilFactor =
-      (int)((float)irisH * 256.0f * (1.0f / E.pupilFactor));
+  // pupilFactor is the IRIS fraction, and a package may legitimately ask for a
+  // pupil that swallows the whole iris -- pupilMax 1.0 -- which lands it on
+  // zero. Dividing by that gives infinity and casting infinity to int is
+  // undefined, so floor it at something that still means "all pupil".
+  const float pupilFactor =
+      (E.pupilFactor > 0.004f) ? E.pupilFactor : 0.004f;
+  const int iPupilFactor = (int)((float)irisH * 256.0f * (1.0f / pupilFactor));
   const uint16_t irisAngle = E.irisAngle;
   const int flowAmp = _flowAmp;
   const uint16_t flowWaveQ = _flowWaveQ;

@@ -248,18 +248,20 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
     changed |= boolRow(doc, "slitPupilRounded*", "slitPupilRounded",
                        now.slitPupilRounded,
                        "Round the ends of the slit." EXTENSION_NOTE);
+    // Resizing the iris leaves no pupil to fill, so the one setting turns the
+    // other into dead weight rather than merely changing what it does.
+    const bool dilating = doc.getBool("irisDilation", now.irisDilation);
+    ImGui::BeginDisabled(dilating);
     changed |= boolRow(doc, "texturedPupil*", "texturedPupil",
                        now.texturedPupil,
-                       "Fill the pupil from the iris texture's centre instead "
-                       "of with a flat colour, for a drawn eye whose pattern "
-                       "runs all the way in. Dilating still grows and shrinks "
-                       "it." EXTENSION_NOTE);
+                       "Fill the pupil from the iris texture instead of a flat "
+                       "colour, for a pattern that runs to the centre. Ignored "
+                       "with irisDilation on." EXTENSION_NOTE);
+    ImGui::EndDisabled();
     changed |= boolRow(doc, "irisDilation*", "irisDilation", now.irisDilation,
-                       "Dilate by resizing the iris instead of opening a pupil "
-                       "in it. The disc grows and shrinks whole, pattern and "
-                       "edge intact, with the sclera showing behind it. "
-                       "pupilMin and pupilMax then read as the smallest and "
-                       "largest the disc gets." EXTENSION_NOTE);
+                       "Resize the iris instead of opening a pupil in it. "
+                       "pupilMin and pupilMax then mean the disc's smallest "
+                       "and largest." EXTENSION_NOTE);
   }
 
   if (ImGui::CollapsingHeader("Display", ImGuiTreeNodeFlags_DefaultOpen)) {

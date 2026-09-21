@@ -300,10 +300,12 @@ var CONFIG_SECTIONS = [
         help: 'Lay the slit on its side.' + EXT },
       { key: 'slitPupilRounded', type: 'bool', def: false, ext: true,
         help: 'Round the ends of the slit.' + EXT },
-      { key: 'texturedPupil', type: 'bool', def: false, ext: true,
-        help: "Fill the pupil from the iris texture's centre instead of with a flat colour, for a drawn eye whose pattern runs all the way in. Dilating still grows and shrinks it." + EXT },
+      // Resizing the iris leaves no pupil to fill, so one setting makes the
+      // other dead weight rather than merely changing what it does.
+      { key: 'texturedPupil', type: 'bool', def: false, ext: true, deadWith: 'irisDilation',
+        help: 'Fill the pupil from the iris texture instead of a flat colour, for a pattern that runs to the centre. Ignored with irisDilation on.' + EXT },
       { key: 'irisDilation', type: 'bool', def: false, ext: true,
-        help: 'Dilate by resizing the iris instead of opening a pupil in it. The disc grows and shrinks whole, pattern and edge intact, with the sclera showing behind it. pupilMin and pupilMax then read as the smallest and largest the disc gets.' + EXT }
+        help: "Resize the iris instead of opening a pupil in it. pupilMin and pupilMax then mean the disc's smallest and largest." + EXT }
     ]
   },
   {
@@ -482,6 +484,8 @@ function rgb565Hex(c) {
 }
 
 function rowDisabled(row) {
+  // Greyed out because another setting has taken it out of play entirely.
+  if (row.deadWith && !!cfg[row.deadWith]) return true;
   if (row.needs) return !(cfg[row.needs] === undefined ? true : !!cfg[row.needs]);
   if (row.needsExt) {
     var ext = cfg.extensions && cfg.extensions[row.feature];
@@ -570,7 +574,8 @@ function renderConfigForm() {
         // anything, so only those need the form rebuilding. Rebuilding on
         // every edit threw away which sections were open and where the page
         // was scrolled to.
-        if (row.key === 'tracking' || row.key === 'singleEye') {
+        if (row.key === 'tracking' || row.key === 'singleEye' ||
+            row.key === 'irisDilation') {
           renderConfigForm();
           return;
         }

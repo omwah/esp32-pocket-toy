@@ -8,7 +8,7 @@
   // silhouette stays put on screen while the iris slides about inside it:
   // paint the outline into the iris and it wanders off her face with the
   // gaze. tools/make_pomni_eye.py says more.
-  "irisRadius": 42,
+  "irisRadius": 55,
   "displaySize": 0,
   "coverage": 0.6,
 

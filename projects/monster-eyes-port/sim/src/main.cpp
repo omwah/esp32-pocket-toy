@@ -258,7 +258,13 @@ public:
       // animator rather than being frozen where they were.
       _eyes->setBlink(blink);
       _eyes->releaseBlink();
+      // The pupil needs the same treatment, and did not get it: setting an
+      // iris fraction tells the renderer something else owns the pupil, so
+      // every edit left the dilation frozen where it stood for the rest of the
+      // session. Moving a slider looked like it had switched dilation off.
       _eyes->setIrisFraction(iris);
+      if (!_fixedPupil)
+        _eyes->releasePupil();
     }
     return true;
   }
