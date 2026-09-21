@@ -86,16 +86,29 @@ function renderBrightness() {
     q('brightpct').textContent = s.brightness + '%';
 }
 
+// The poll runs every couple of seconds, and rewriting a control's innards is
+// not free on a phone: replacing the options of a <select> while its picker is
+// open closes and reopens it, which on Firefox for Android reads as the list
+// flashing while you are trying to choose from it. So only write when the
+// content has actually changed, and never while the control is in use.
+var lastStyleList = null;
+
 function renderStyles() {
-  q('style').innerHTML = s.styles.map(function (name, i) {
+  var html = s.styles.map(function (name, i) {
     return s.enabled[i] ? '<option value=' + i + '>' + h(name) + '</option>' : '';
   }).join('');
+  if (html !== lastStyleList && document.activeElement !== q('style')) {
+    q('style').innerHTML = html;
+    lastStyleList = html;
+  }
   set(q('style'), s.style);
 }
 
+var lastPackageList = null;
+
 function renderPackages() {
   var last = s.styles.length - 1;
-  q('eyes').innerHTML = s.styles.map(function (name, i) {
+  var html = s.styles.map(function (name, i) {
     var active = i === s.style;
     return '<div class=pkg>' +
       '<input type=checkbox ' + (s.enabled[i] ? 'checked' : '') +
@@ -110,6 +123,9 @@ function renderPackages() {
         '<button class=danger ' + (active || last === 0 ? 'disabled' : '') + ' onclick="deletePkg(' + i + ')">Delete</button>' +
       '</div></div>';
   }).join('');
+  if (html === lastPackageList) return;   // Same rows; leave the DOM alone
+  q('eyes').innerHTML = html;
+  lastPackageList = html;
 }
 
 async function refresh() {
