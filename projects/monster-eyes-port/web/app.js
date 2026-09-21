@@ -381,6 +381,12 @@ var CONFIG_SECTIONS = [
 
 var cfg = null;      // The parsed config.eye, or null before it is fetched
 var cfgLoadedFor = '';  // Package the form was built for
+// Which sections the reader has opened. All shut to begin with: thirty-odd
+// controls unrolled at once is a long scroll on a phone, and the section
+// titles are the map. Kept here rather than read back off the DOM because the
+// form is rebuilt from scratch when a setting gates another one, and a
+// rebuilt <details> forgets it was open.
+var cfgOpen = {};
 
 // config.eye is JSON with // comments, which the device's parser takes and
 // JSON.parse does not. Strings are stepped over so a // inside an asset path
@@ -515,10 +521,20 @@ function renderConfigForm() {
         (row.ext ? '*' : '') + '</label>' + input +
         '<p class=note>' + h(row.help) + '</p></div>';
     }).join('');
-    return '<details' + (si < 4 ? ' open' : '') + '><summary>' + h(section.title) +
+    return '<details' + (cfgOpen[si] ? ' open' : '') + ' data-section=' + si +
+      '><summary>' + h(section.title) +
       '</summary><p class=note>' + h(section.note) + '</p>' + rows + '</details>';
   }).join('');
+  var scrolled = window.scrollY;
   q('cfgForm').innerHTML = html;
+  window.scrollTo(0, scrolled);
+
+  Array.prototype.forEach.call(
+    q('cfgForm').querySelectorAll('details'), function (d) {
+      d.addEventListener('toggle', function () {
+        cfgOpen[d.getAttribute('data-section')] = d.open;
+      });
+    });
 
   CONFIG_SECTIONS.forEach(function (section, si) {
     section.rows.forEach(function (row, ri) {
@@ -542,9 +558,18 @@ function renderConfigForm() {
           cfgSet(row, rgb565Hex(packed));
         }
         else cfgSet(row, Number(el.value));
-        // tracking and singleEye decide whether another control means
-        // anything, so the form is rebuilt rather than left lying.
-        renderConfigForm();
+        // Only tracking and singleEye decide whether another control means
+        // anything, so only those need the form rebuilding. Rebuilding on
+        // every edit threw away which sections were open and where the page
+        // was scrolled to.
+        if (row.key === 'tracking' || row.key === 'singleEye') {
+          renderConfigForm();
+          return;
+        }
+        var readout = q('cfg-' + si + '-' + ri + '-v');
+        if (readout)
+          readout.textContent = row.type === 'color'
+            ? rgb565Hex(htmlToRgb565(el.value)) : el.value;
       });
     });
   });
