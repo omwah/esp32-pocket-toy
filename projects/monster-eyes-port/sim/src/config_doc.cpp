@@ -121,6 +121,20 @@ void ConfigDocument::setExtBool(const char *feature, const char *key,
   _dirty = true;
 }
 
+int ConfigDocument::getExtInt(const char *feature, const char *key,
+                              int inForce) const {
+  JsonVariantConst v = _impl->doc["extensions"][feature][key];
+  if (v.is<int>() || v.is<float>())
+    return v.as<int>();
+  return inForce;
+}
+
+void ConfigDocument::setExtInt(const char *feature, const char *key,
+                               int value) {
+  _impl->doc["extensions"][feature][key] = value;
+  _dirty = true;
+}
+
 float ConfigDocument::getExtFloat(const char *feature, const char *key,
                                   float inForce) const {
   JsonVariantConst v = _impl->doc["extensions"][feature][key];

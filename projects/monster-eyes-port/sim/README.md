@@ -122,7 +122,9 @@ right and down to make room.
 ```
 
 It is grouped as geometry and pupil, display, colours, animation, rotation and
-iris flow.
+iris flow. Within each section the extensions -- the settings marked with a
+star, which a stock Monster Eyes package will not understand -- come last, so
+what upstream has is what you read first.
 Texture paths and the per-eye `left`/`right` blocks are not exposed; edit those
 in the file.
 

@@ -96,6 +96,17 @@ public:
    */
   void setExtBool(const char *feature, const char *key, bool value);
 
+  /** @brief Read extensions.<feature>.<key> as a whole number.
+   *  @param feature Extension block. @param key Key within it.
+   *  @param inForce Value to report when the key is absent.
+   *  @return The stored value, or @p inForce. */
+  int getExtInt(const char *feature, const char *key, int inForce) const;
+
+  /** @brief Write extensions.<feature>.<key> as a whole number.
+   *  @param feature Extension block. @param key Key within it.
+   *  @param value Value to store. */
+  void setExtInt(const char *feature, const char *key, int value);
+
   /** @brief Read extensions.<feature>.<key> as a number.
    *  @param feature Extension block. @param key Key within it.
    *  @param inForce Value to report when the key is absent.

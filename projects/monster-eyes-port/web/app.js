@@ -277,7 +277,9 @@ var CONFIG_SECTIONS = [
       { key: 'slitPupilHorizontal', type: 'bool', def: false, ext: true,
         help: 'Lay the slit on its side.' + EXT },
       { key: 'slitPupilRounded', type: 'bool', def: false, ext: true,
-        help: 'Round the ends of the slit.' + EXT }
+        help: 'Round the ends of the slit.' + EXT },
+      { key: 'texturedPupil', type: 'bool', def: false, ext: true,
+        help: "Fill the pupil from the iris texture's centre instead of with a flat colour, for a drawn eye whose pattern runs all the way in. Dilating still grows and shrinks it." + EXT }
     ]
   },
   {
@@ -288,7 +290,10 @@ var CONFIG_SECTIONS = [
         help: 'One eye filling the panel, 240px centred, instead of two 128px eyes side by side. The eye is rebuilt, so its textures reload at the new size.' + EXT },
       { key: 'side', type: 'select', options: ['left', 'right'], def: 'left',
         ext: true, feature: 'display', needsExt: 'singleEye',
-        help: "Which eye the single one is, and so which of the config's left and right blocks applies to it." + EXT }
+        help: "Which eye the single one is, and so which of the config's left and right blocks applies to it." + EXT },
+      { key: 'eyeGap', type: 'int', min: -64, max: 96, def: 28, ext: true,
+        feature: 'display',
+        help: "Pixels between the two eye squares; each eye moves half the difference, so the pair stays centred. The panel's own layout leaves 28. Negative overlaps them, which suits a face whose eyes nearly touch -- but past the point where one square reaches the other eye's artwork it writes its background over it." + EXT }
     ]
   },
   {
@@ -318,7 +323,10 @@ var CONFIG_SECTIONS = [
         help: 'Let the eye blink on its own. Off means it never blinks.' + EXT },
       { key: 'cyclovergence', type: 'float', min: 0, max: 90, step: 0.5, def: 0,
         ext: true, feature: 'animation',
-        help: 'Roll the eyes as the gaze goes down, the way a grazing animal keeps its slit level with the horizon while its head is lowered. This is the angle at full downward gaze; looking level or up leaves the eyes level.' + EXT }
+        help: 'Roll the eyes as the gaze goes down, the way a grazing animal keeps its slit level with the horizon while its head is lowered. This is the angle at full downward gaze; looking level or up leaves the eyes level.' + EXT },
+      { key: 'gazeRange', type: 'float', min: 0, max: 1, step: 0.01, def: 1,
+        ext: true, feature: 'animation',
+        help: "How far the eye may look, as a fraction of what the geometry allows. 1 is everything; less keeps a drawn eye's iris inside its own white and its artwork inside the box it is drawn in." + EXT }
     ]
   },
   {

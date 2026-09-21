@@ -33,6 +33,14 @@ Wi-Fi, and overlays reach feature parity with the production application.
   follows the head and there is no head here, so the gaze stands in for it:
   looking down is the grazing posture. The value is the angle at full downward
   gaze.
+- Adds three extensions for eyes that are drawn rather than grown:
+  `texturedPupil` fills the pupil from the iris texture's centre, so a pattern
+  that runs to the middle closes over it instead of being cut out by a flat
+  disc; `extensions.animation.gazeRange` scales how far the eye may look, since
+  a drawing has a white to stay inside and a box to stay inside where an
+  eyeball has neither; and `extensions.display.eyeGap` sets how far apart the
+  two eyes sit, because how far apart a face wears them is the package's
+  business and not the panel's.
 - Discovers package directories under `/eyes`; eye names and paths are not
   compiled into firmware.
 - Resolves package-relative asset paths and reconstructs the renderer safely

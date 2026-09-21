@@ -241,6 +241,12 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
     changed |= boolRow(doc, "slitPupilRounded*", "slitPupilRounded",
                        now.slitPupilRounded,
                        "Round the ends of the slit." EXTENSION_NOTE);
+    changed |= boolRow(doc, "texturedPupil*", "texturedPupil",
+                       now.texturedPupil,
+                       "Fill the pupil from the iris texture's centre instead "
+                       "of with a flat colour, for a drawn eye whose pattern "
+                       "runs all the way in. Dilating still grows and shrinks "
+                       "it." EXTENSION_NOTE);
   }
 
   if (ImGui::CollapsingHeader("Display", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -269,6 +275,24 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
     ImGui::EndDisabled();
     noteHelp("Which eye the single one is, and so which of the config's left "
              "and right blocks applies to it." EXTENSION_NOTE);
+
+    // Only means anything with two eyes, since one eye is centred.
+    ImGui::BeginDisabled(single);
+    {
+      int gap = doc.getExtInt("display", "eyeGap", 28);
+      ImGui::SetNextItemWidth(ImGui::GetFontSize() * 8.0f);
+      if (ImGui::SliderInt("eyeGap*", &gap, -64, 96, "%d px")) {
+        doc.setExtInt("display", "eyeGap", gap);
+        changed = true;
+      }
+    }
+    ImGui::EndDisabled();
+    noteHelp("Pixels between the two eye squares; each eye moves half the "
+             "difference, so the pair stays centred. The panel's own layout "
+             "leaves 28. Negative overlaps them, which suits a face whose "
+             "eyes nearly touch -- but past the point where one square "
+             "reaches the other eye's artwork it writes its background over "
+             "it." EXTENSION_NOTE);
   }
 
   if (ImGui::CollapsingHeader("Colours", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -319,6 +343,17 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
                "keeps its slit level with the horizon while its head is "
                "lowered. This is the angle at full downward gaze; looking "
                "level or up leaves the eyes level." EXTENSION_NOTE);
+    }
+    {
+      float range = doc.getExtFloat("animation", "gazeRange", now.gazeRange);
+      if (ImGui::SliderFloat("gazeRange*", &range, 0.0f, 1.0f, "%.2f")) {
+        doc.setExtFloat("animation", "gazeRange", range);
+        changed = true;
+      }
+      noteHelp("How far the eye may look, as a fraction of what the geometry "
+               "allows. 1 is everything; less keeps a drawn eye's iris inside "
+               "its own white and its artwork inside the box it is drawn "
+               "in." EXTENSION_NOTE);
     }
   }
 
