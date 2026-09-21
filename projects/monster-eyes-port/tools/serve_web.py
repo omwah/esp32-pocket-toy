@@ -43,6 +43,21 @@ state = {
 }
 
 
+# What GET /api/config hands back: JSON with a comment in it, as the real
+# packages have, so the page's tolerant parser is exercised every load.
+CONFIG = """{
+  "eyeRadius"     : 125, // comment the browser's JSON.parse would choke on
+  "pupilColor"    : [ 0, 0, 0 ],
+  "backColor"     : "0x8A04",
+  "irisTexture"   : "hazel/iris.bmp",
+  "extensions"    : { "display": { "singleEye": false } },
+  "left" : { },
+  "right" : { }
+}
+"""
+config = {"text": CONFIG, "unsaved": False}
+
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(WEB), **kwargs)
@@ -59,6 +74,15 @@ class Handler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        if self.path.startswith("/api/config"):
+            body = config["text"].encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("X-Config-Unsaved", "1" if config["unsaved"] else "0")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path.startswith("/api/packages/download"):
             self.send_response(200)
             self.send_header("Content-Type", "application/octet-stream")
@@ -69,8 +93,19 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length") or 0)
-        args = {k: v[0] for k, v in parse_qs(self.rfile.read(length).decode(errors="replace")).items()}
+        raw = self.rfile.read(length).decode(errors="replace")
+        json_body = self.headers.get("Content-Type", "").startswith("application/json")
+        args = {} if json_body else {k: v[0] for k, v in parse_qs(raw).items()}
         path = self.path.split("?")[0]
+        if path.startswith("/api/config"):
+            if path == "/api/config/revert":
+                config["text"], config["unsaved"] = CONFIG, False
+            else:
+                config["text"] = raw
+                config["unsaved"] = path == "/api/config/apply"
+            self.send_response(204)
+            self.end_headers()
+            return
         if path == "/api/audio/mute":
             state["muted"] = args.get("muted") in ("true", "1")
         elif path == "/api/audio/volume":

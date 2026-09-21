@@ -138,6 +138,11 @@ bool MonsterController::setStyle(uint8_t style) {
     _eyes->setStorageEnabled(true);
     _eyes->setDriveModeEnabled(false);
     _eyes->setConfigFile(_packages[style].config.c_str());
+    // An edit that has not been saved follows its own package around, so
+    // flicking away and back does not silently restore the file's version.
+    _eyes->setConfigText(_liveConfig.length() && _liveId == _packages[style].id
+                             ? _liveConfig.c_str()
+                             : NULL);
     _eyes->setSelfTest(false);
     if (!_eyes->begin()) {
         Serial.printf("style load failed: %s (%s)\n",
@@ -243,4 +248,39 @@ void MonsterController::persistCurrent() {
     prefs.begin("monster-eyes", false);
     prefs.putString("current", _packages[_style].id);
     prefs.end();
+}
+
+bool MonsterController::applyConfigText(const String &json, String &error) {
+    if (_packages.empty()) {
+        error = "no packages";
+        return false;
+    }
+    const String previous = _liveConfig, previousId = _liveId;
+    _liveConfig = json;
+    _liveId = _packages[_style].id;
+    if (setStyle(_style)) return true;
+    // A config that will not load leaves the eyes blank, so put back whatever
+    // was showing before and report the failure instead.
+    _liveConfig = previous;
+    _liveId = previousId;
+    error = "config rejected";
+    setStyle(_style);
+    return false;
+}
+
+void MonsterController::clearLiveConfig() {
+    _liveConfig = "";
+    _liveId = "";
+}
+
+String MonsterController::configText() const {
+    if (_liveConfig.length() && !_packages.empty() &&
+        _liveId == _packages[_style].id)
+        return _liveConfig;
+    if (_packages.empty()) return "";
+    File f = FFat.open(_packages[_style].config);
+    if (!f) return "";
+    String text = f.readString();
+    f.close();
+    return text;
 }

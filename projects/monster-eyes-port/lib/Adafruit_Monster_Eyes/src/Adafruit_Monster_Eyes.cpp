@@ -128,6 +128,7 @@ void Adafruit_Monster_Eyes::applyDefaults(void) {
   _clockOffset = 0;
 
   _configFile = "/config.eye";
+  _configText = NULL;
   _storageEnabled = true;
   _driveModeEnabled = true;
   _safeModePin = EYES_SAFE_MODE_PIN_DEFAULT;

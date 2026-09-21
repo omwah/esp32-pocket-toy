@@ -49,6 +49,13 @@ public:
     uint8_t style() const { return _style; }
     uint8_t styleCount() const { return _packages.size(); }
     const char *styleName(uint8_t style) const;
+    // Live config editing from the web page. A config applied this way is
+    // held in RAM and handed to the renderer instead of the package's file, so
+    // it is gone at the next reboot unless it is written down.
+    bool applyConfigText(const String &json, String &error);
+    void clearLiveConfig();
+    bool hasLiveConfig() const { return _liveConfig.length() > 0; }
+    String configText() const;
     const char *configPath() const {
         return _packages.empty() ? "" : _packages[_style].config.c_str();
     }
@@ -67,5 +74,7 @@ private:
     static constexpr size_t kEyesBytes = sizeof(Adafruit_Monster_Eyes);
     alignas(Adafruit_Monster_Eyes) uint8_t _storage[kEyesBytes];
     Adafruit_Monster_Eyes *_eyes = nullptr;
+    String _liveConfig; ///< Unsaved config text, empty when the file rules
+    String _liveId;     ///< Package the unsaved config belongs to
     uint8_t _style = 0;
 };

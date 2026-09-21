@@ -541,6 +541,19 @@ public:
   void setConfigFile(const char *path) { _configFile = path; }
 
   /**
+   * @brief Take the config from memory rather than from the drive.
+   *
+   * begin() parses a config.eye and sizes everything from it, so trying a
+   * setting means parsing one. A sketch that wants to try a change without
+   * committing it to flash can hand the text over here instead: the drive is
+   * left alone, and the change lasts until the next reboot.
+   *
+   * @param json Config text, or NULL to go back to reading the file. The
+   *             caller keeps ownership and must keep it alive across begin().
+   */
+  void setConfigText(const char *json) { _configText = json; }
+
+  /**
    * @brief Whether to mount the asset filesystem at all.
    * @param on false uses built-in defaults: a solid-colour eye, no eyelids.
    */
@@ -592,6 +605,10 @@ public:
    * @return false if the file is absent or unparseable; settings stay usable.
    */
   bool loadConfig(const char *path = NULL);
+  /** @brief Parse config text. @param json Document. @return true if parsed. */
+  bool loadConfigText(const char *json);
+  /** @brief Apply an already-parsed config. @param docPtr JsonDocument. */
+  void applyParsedConfig(void *docPtr);
   ///@}
 
   // -----------------------------------------------------------------------
@@ -804,7 +821,8 @@ private:
   int32_t _clockOffset; ///< Added to millis() for rotation
 
   // Options
-  const char *_configFile; ///< Path to the JSON configuration
+  const char *_configFile;
+  const char *_configText; ///< Config held in memory, or NULL to read the file ///< Path to the JSON configuration
   bool _storageEnabled;    ///< Mount the asset filesystem
   bool _driveModeEnabled;  ///< Offer the USB drive from begin()
   int _safeModePin;        ///< Button GPIO, or -1 for BOOTSEL

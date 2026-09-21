@@ -15,6 +15,12 @@ public:
     bool validatePackage(const String &root, String &error) const;
     bool renamePackage(const String &id, const String &newId, String &error);
     bool deletePackage(const String &id, String &error);
+    // Config editing from the web page. writeConfig() replaces one package's
+    // config.eye in place; copyPackage() duplicates a package with a config of
+    // our own, which is "save as a new profile".
+    bool writeConfig(const String &id, const String &text, String &error);
+    bool copyPackage(const String &id, const String &newId,
+                     const String &configText, String &error);
     static bool validId(const String &id);
     static bool validRelativePath(const String &path);
     String livePath(const String &id) const { return "/eyes/" + id; }

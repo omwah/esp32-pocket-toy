@@ -20,7 +20,7 @@ function set(el, value) {
   if (document.activeElement !== el) el.value = value;
 }
 
-var TABS = ['c', 'p', 's'];
+var TABS = ['c', 'p', 's', 'e'];
 
 function show(tab) {
   if (TABS.indexOf(tab) < 0) tab = 'c';
@@ -33,6 +33,7 @@ function show(tab) {
   // runs while its own tab is open.
   if (tab !== 's') stopLive();
   else if (!q('shot').src) capture();
+  if (tab === 'e') loadConfig();
 }
 
 async function post(url, data) {
@@ -233,3 +234,346 @@ addEventListener('hashchange', function () { show(location.hash.slice(1)); });
 show(location.hash.slice(1));
 refresh();
 setInterval(refresh, 2500);
+
+// ---------------------------------------------------------------------------
+// config.eye editor
+//
+// This mirrors the simulator's panel in sim/src/config_panel.cpp: the same
+// sections in the same order, the same controls in each, and the same help
+// text. They are two hand-written copies of one list, so an edit to either
+// belongs in both.
+//
+// A `*` after a name means the setting is an extension of this fork and a
+// stock Adafruit Monster Eyes package will not understand it.
+const EXT = ' *Extension, not in upstream Monster Eyes.';
+
+var CONFIG_SECTIONS = [
+  {
+    title: 'Geometry and pupil',
+    note: 'Eyeball and pupil sizes, in config pixels not screen.',
+    rows: [
+      { key: 'eyeRadius', type: 'int', min: 0, max: 250, def: 0,
+        help: "Eyeball radius, 0 to derive it. In the config's own pixel space, which begin() rescales to the display." },
+      { key: 'irisRadius', type: 'int', min: 0, max: 250, def: 0,
+        help: "Iris radius in the config's own pixel space; 0 derives it." },
+      { key: 'slitPupilRadius', type: 'int', min: -1, max: 250, def: 0,
+        help: '0 for a round pupil, -1 to derive it, or the slit length in pixels.' },
+      { key: 'displaySize', type: 'int', min: 0, max: 240, def: 0,
+        help: 'Eye width and height in pixels; 0 fills the display.' },
+      { key: 'coverage', type: 'float', min: 0, max: 1.5, step: 0.001, def: 0.6,
+        help: 'How much of the eyeball the display shows. begin() may raise it to fit.' },
+      { key: 'pupilMin', type: 'float', min: 0, max: 1, step: 0.001, def: 0.05,
+        help: 'Smallest pupil as a fraction of the iris.' },
+      { key: 'pupilMax', type: 'float', min: 0, max: 1, step: 0.001, def: 0.25,
+        help: 'Largest pupil as a fraction of the iris.' },
+      { key: 'fixate', type: 'int', min: -60, max: 60, def: 7,
+        help: 'Convergence toward the face, in map pixels.' },
+      { key: 'tracking', type: 'bool', def: true,
+        help: 'Let the lids follow the gaze. Squint does nothing without it.' },
+      // Squint is the resting offset of that tracking and is read nowhere
+      // else, so it is inert while tracking is off rather than merely subtle.
+      { key: 'squint', type: 'float', min: 0, max: 1, step: 0.001, def: 0.5, needs: 'tracking',
+        help: 'Where the lids rest while they track the gaze; inert with tracking off. Raising it lowers the upper lid and drops the lower with it, scaled by irisRadius.' },
+      { key: 'slitPupilHorizontal', type: 'bool', def: false, ext: true,
+        help: 'Lay the slit on its side.' + EXT },
+      { key: 'slitPupilRounded', type: 'bool', def: false, ext: true,
+        help: 'Round the ends of the slit.' + EXT }
+    ]
+  },
+  {
+    title: 'Display',
+    note: 'How many eyes the panel shows.',
+    rows: [
+      { key: 'singleEye', type: 'bool', def: false, ext: true, feature: 'display',
+        help: 'One eye filling the panel, 240px centred, instead of two 128px eyes side by side. The eye is rebuilt, so its textures reload at the new size.' + EXT },
+      { key: 'side', type: 'select', options: ['left', 'right'], def: 'left',
+        ext: true, feature: 'display', needsExt: 'singleEye',
+        help: "Which eye the single one is, and so which of the config's left and right blocks applies to it." + EXT }
+    ]
+  },
+  {
+    title: 'Colours',
+    note: 'Used where a texture is missing.',
+    rows: [
+      { key: 'irisColor', type: 'color', def: 0x001F,
+        help: 'Flat iris colour, used when irisTexture is missing or is a 1x1 bitmap.' },
+      { key: 'scleraColor', type: 'color', def: 0xFFFF,
+        help: 'Flat sclera colour, used when scleraTexture is missing.' },
+      { key: 'pupilColor', type: 'color', def: 0x0000, help: 'Fill colour of the pupil.' },
+      { key: 'backColor', type: 'color', def: 0x5000,
+        help: 'Shown outside the eyeball, where no eyelid covers it.' },
+      { key: 'eyelidColor', type: 'color', def: 0x0000,
+        help: 'The eyelids, and the background the panel is cleared to.' }
+    ]
+  },
+  {
+    title: 'Animation',
+    note: 'What the eye does when nothing is steering it.',
+    rows: [
+      { key: 'gazeMax', type: 'int', min: 100000, max: 10000000, step: 100000, def: 3000000,
+        help: 'Longest wait between major eye movements, in microseconds. Only matters with autoGaze on.' },
+      { key: 'autoGaze', type: 'bool', def: true, ext: true, feature: 'animation',
+        help: 'Let the eye look around on its own. Off holds the gaze still, for a package that should stare.' + EXT },
+      { key: 'autoBlink', type: 'bool', def: true, ext: true, feature: 'animation',
+        help: 'Let the eye blink on its own. Off means it never blinks.' + EXT },
+      { key: 'cyclovergence', type: 'float', min: 0, max: 90, step: 0.5, def: 0,
+        ext: true, feature: 'animation',
+        help: 'Roll the eyes as the gaze goes down, the way a grazing animal keeps its slit level with the horizon while its head is lowered. This is the angle at full downward gaze; looking level or up leaves the eyes level.' + EXT }
+    ]
+  },
+  {
+    title: 'Rotation',
+    note: 'Rolls the whole eyeball, and spins its textures in place.',
+    rows: [
+      { key: 'irisSpin', type: 'float', min: -30, max: 30, step: 0.01, def: 0,
+        help: 'Turn the iris texture continuously. Positive is clockwise, 0 holds it still.' },
+      { key: 'scleraSpin', type: 'float', min: -30, max: 30, step: 0.01, def: 0,
+        help: 'Turn the sclera texture continuously.' },
+      { key: 'irisAngle', type: 'int', min: 0, max: 1023, def: 0,
+        help: 'Where the iris texture starts, 0-1023 counter-clockwise.' },
+      { key: 'scleraAngle', type: 'int', min: 0, max: 1023, def: 0,
+        help: 'Where the sclera texture starts, 0-1023 counter-clockwise.' },
+      { key: 'irisMirror', type: 'bool', def: false,
+        help: 'Mirror the iris texture, reversing which way its detail runs.' },
+      { key: 'scleraMirror', type: 'bool', def: false,
+        help: 'Mirror the sclera texture.' },
+      { key: 'roll', type: 'float', min: -90, max: 90, step: 0.5, def: 0, ext: true,
+        help: 'Roll the eyeball about its own optic axis. The two eyes take opposite angles, as a grazing animal\'s do when its head goes down and it keeps the slit level with the horizon. Pupil, iris and sclera turn together; the lids do not.' + EXT }
+    ]
+  },
+  {
+    title: 'Iris flow',
+    note: 'Iris creeps along a moving wave, without turning.',
+    rows: [
+      { key: 'irisFlow', type: 'float', min: 0, max: 1, step: 0.001, def: 0, ext: true,
+        help: 'How far the sampling shifts at the peak, as a fraction of iris depth. 0 switches the effect off.' + EXT },
+      { key: 'irisFlowSpeed', type: 'float', min: -10, max: 10, step: 0.01, def: 1, ext: true,
+        help: 'Wave crests leaving the pupil per second. Negative draws them inward.' + EXT },
+      { key: 'irisFlowWaves', type: 'float', min: 0, max: 20, step: 0.01, def: 2, ext: true,
+        help: 'How many crests sit between the pupil and the rim.' + EXT }
+    ]
+  }
+];
+
+var cfg = null;      // The parsed config.eye, or null before it is fetched
+var cfgLoadedFor = '';  // Package the form was built for
+
+// config.eye is JSON with // comments, which the device's parser takes and
+// JSON.parse does not. Strings are stepped over so a // inside an asset path
+// survives.
+function parseConfig(text) {
+  var out = '', inString = false, i;
+  for (i = 0; i < text.length; i++) {
+    var c = text[i];
+    if (inString) {
+      out += c;
+      if (c === '\\') { out += text[++i] || ''; continue; }
+      if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') { inString = true; out += c; continue; }
+    if (c === '/' && text[i + 1] === '/') {
+      while (i < text.length && text[i] !== '\n') i++;
+      out += '\n';
+      continue;
+    }
+    if (c === '/' && text[i + 1] === '*') {
+      i += 2;
+      while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++;
+      i++;
+      continue;
+    }
+    out += c;
+  }
+  return JSON.parse(out);
+}
+
+function cfgFeature(row) { return row.feature ? row.feature : null; }
+
+function cfgGet(row) {
+  if (cfgFeature(row)) {
+    var ext = cfg.extensions && cfg.extensions[row.feature];
+    var v = ext ? ext[row.key] : undefined;
+    return v === undefined ? row.def : v;
+  }
+  return cfg[row.key];
+}
+
+function cfgSet(row, value) {
+  if (cfgFeature(row)) {
+    if (!cfg.extensions) cfg.extensions = {};
+    if (!cfg.extensions[row.feature]) cfg.extensions[row.feature] = {};
+    cfg.extensions[row.feature][row.key] = value;
+  } else if (value === null) {
+    delete cfg[row.key];
+  } else {
+    cfg[row.key] = value;
+  }
+}
+
+// Colours are stored as 0xRRRR RGB565, an [r,g,b] triple or a plain number,
+// and are written back the way the simulator writes them: a hex string.
+function toRgb565(value, fallback) {
+  if (typeof value === 'number') return value & 0xffff;
+  // "0x1F00" or a decimal string; Number() reads both.
+  if (typeof value === 'string') return Number(value) & 0xffff;
+  if (Array.isArray(value) && value.length >= 3) {
+    var c = value.map(function (v) {
+      var n = typeof v === 'string' ? parseInt(v) : v;
+      if (n > 0 && n <= 1 && !Number.isInteger(n)) n = n * 255.999;
+      return Math.max(0, Math.min(255, Math.round(n)));
+    });
+    return ((c[0] & 0xf8) << 8) | ((c[1] & 0xfc) << 3) | (c[2] >> 3);
+  }
+  return fallback;
+}
+
+function rgb565ToHtml(c) {
+  var r = (c >> 11) & 0x1f, g = (c >> 5) & 0x3f, b = c & 0x1f;
+  var hex = function (v) { return ('0' + v.toString(16)).slice(-2); };
+  return '#' + hex((r << 3) | (r >> 2)) + hex((g << 2) | (g >> 4)) + hex((b << 3) | (b >> 2));
+}
+
+function htmlToRgb565(value) {
+  var n = parseInt(value.slice(1), 16);
+  return (((n >> 16) & 0xf8) << 8) | ((((n >> 8) & 0xfc)) << 3) | ((n & 0xff) >> 3);
+}
+
+function rgb565Hex(c) {
+  return '0x' + ('000' + c.toString(16).toUpperCase()).slice(-4);
+}
+
+function rowDisabled(row) {
+  if (row.needs) return !(cfg[row.needs] === undefined ? true : !!cfg[row.needs]);
+  if (row.needsExt) {
+    var ext = cfg.extensions && cfg.extensions[row.feature];
+    return !(ext && ext[row.needsExt]);
+  }
+  return false;
+}
+
+function renderConfigForm() {
+  if (!cfg) return;
+  var html = CONFIG_SECTIONS.map(function (section, si) {
+    var rows = section.rows.map(function (row, ri) {
+      var id = 'cfg-' + si + '-' + ri;
+      var value = cfgGet(row);
+      var off = rowDisabled(row) ? ' disabled' : '';
+      var input;
+      if (row.type === 'bool') {
+        var on = value === undefined ? row.def : !!value;
+        input = '<input type=checkbox id=' + id + (on ? ' checked' : '') + off + '>';
+      } else if (row.type === 'select') {
+        input = '<select id=' + id + off + '>' + row.options.map(function (o) {
+          return '<option' + (o === value ? ' selected' : '') + '>' + o + '</option>';
+        }).join('') + '</select>';
+      } else if (row.type === 'color') {
+        // A swatch with the stored value beside it, as the panel's ColorEdit3
+        // shows one. The readout is what the file says, RGB565 in hex, so a
+        // colour can be read off and typed into a config by hand.
+        var c = toRgb565(value, row.def);
+        input = '<input type=color id=' + id + ' value=' + rgb565ToHtml(c) + off + '>' +
+          '<span class=tag id=' + id + '-v>' + rgb565Hex(c) +
+          (value === undefined ? ' (default)' : '') + '</span>';
+      } else {
+        // Sliders, as in the simulator's panel: the useful range is the point
+        // of the control, and a number box invites values the renderer will
+        // only clamp. The readout beside it says where the slider is, and
+        // whether that is the file's value or the built-in default.
+        var at = value === undefined ? row.def : value;
+        input = '<input type=range id=' + id + ' min=' + row.min +
+          ' max=' + row.max + ' step=' + (row.step || 1) +
+          ' value="' + h(at) + '"' + off + '>' +
+          '<span class=tag id=' + id + '-v>' + h(at) +
+          (value === undefined ? ' (default)' : '') + '</span>';
+      }
+      return '<div class=cfgrow><label for=' + id + '>' + h(row.key) +
+        (row.ext ? '*' : '') + '</label>' + input +
+        '<p class=note>' + h(row.help) + '</p></div>';
+    }).join('');
+    return '<details' + (si < 4 ? ' open' : '') + '><summary>' + h(section.title) +
+      '</summary><p class=note>' + h(section.note) + '</p>' + rows + '</details>';
+  }).join('');
+  q('cfgForm').innerHTML = html;
+
+  CONFIG_SECTIONS.forEach(function (section, si) {
+    section.rows.forEach(function (row, ri) {
+      var el = q('cfg-' + si + '-' + ri);
+      if (row.type === 'int' || row.type === 'float') {
+        // Dragging fires input continuously. Only the readout follows it; the
+        // config is written on release, so a drag is one edit and not fifty.
+        el.addEventListener('input', function () {
+          q('cfg-' + si + '-' + ri + '-v').textContent = el.value;
+        });
+      }
+      el.addEventListener('change', function () {
+        if (row.type === 'bool') cfgSet(row, el.checked);
+        else if (row.type === 'select') cfgSet(row, el.value);
+        else if (row.type === 'color') {
+          // The browser picker has 8 bits a channel and the panel has 5 or 6,
+          // so most nudges land on the colour already stored. Writing anyway
+          // would rebuild the eyes for no visible change.
+          var packed = htmlToRgb565(el.value);
+          if (packed === toRgb565(cfgGet(row), row.def)) return;
+          cfgSet(row, rgb565Hex(packed));
+        }
+        else cfgSet(row, Number(el.value));
+        // tracking and singleEye decide whether another control means
+        // anything, so the form is rebuilt rather than left lying.
+        renderConfigForm();
+      });
+    });
+  });
+}
+
+async function loadConfig(force) {
+  var pkg = s.ids ? s.ids[s.style] : '';
+  if (!force && cfg && cfgLoadedFor === pkg) return;
+  var r = await fetch('/api/config');
+  if (!r.ok) { q('cfgForm').textContent = 'No config on the device.'; return; }
+  try {
+    cfg = parseConfig(await r.text());
+  } catch (e) {
+    q('cfgForm').textContent = 'Config could not be parsed: ' + e.message;
+    return;
+  }
+  cfgLoadedFor = pkg;
+  q('cfgPkg').textContent = pkg + (r.headers.get('X-Config-Unsaved') === '1' ? ' (unsaved)' : '');
+  renderConfigForm();
+}
+
+async function postConfig(url, note, params) {
+  var query = params ? '?' + new URLSearchParams(params) : '';
+  var r = await fetch(url + query, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cfg, null, 2)
+  });
+  q('cfgNote').textContent = r.ok ? note : 'Failed: ' + (await r.text() || r.status);
+  refresh();
+  return r.ok;
+}
+
+function applyConfig() {
+  postConfig('/api/config/apply', 'Running on these settings. Not saved: a reboot undoes them.');
+}
+
+function overwriteConfig() {
+  postConfig('/api/config/overwrite', 'Written to this package.');
+}
+
+async function saveConfigAs() {
+  var id = q('cfgSaveAs').value;
+  if (!id) { q('cfgNote').textContent = 'Enter a package ID.'; return; }
+  if (await postConfig('/api/config/save-as', 'Saved as ' + id + '.', { id: id })) {
+    q('cfgSaveAs').value = '';
+    await loadConfig(true);
+  }
+}
+
+async function revertConfig() {
+  await fetch('/api/config/revert', { method: 'POST' });
+  await loadConfig(true);
+  q('cfgNote').textContent = "Back to the package's saved config.";
+  refresh();
+}

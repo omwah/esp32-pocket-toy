@@ -339,3 +339,91 @@ bool PackageStorage::deletePackage(const String &id, String &e) {
     }
     return true;
 }
+
+// A config is small, so it is written whole to a sibling file and renamed over
+// the original: a reset midway leaves the package with its old config rather
+// than half of a new one.
+bool PackageStorage::writeConfig(const String &id, const String &text,
+                                 String &e) {
+    if (!validId(id)) {
+        e = "invalid package id";
+        return false;
+    }
+    String dir = livePath(id);
+    if (!dirExists(dir)) {
+        e = "package not found";
+        return false;
+    }
+    String tmp = dir + "/.config.new", live = dir + "/config.eye";
+    File f = FFat.open(tmp, FILE_WRITE);
+    if (!f) {
+        e = "cannot write config";
+        return false;
+    }
+    const bool whole = f.print(text) == (size_t)text.length();
+    f.close();
+    if (!whole) {
+        FFat.remove(tmp);
+        e = "config write truncated";
+        return false;
+    }
+    FFat.remove(live);
+    if (!FFat.rename(tmp, live)) {
+        FFat.remove(tmp);
+        e = "cannot replace config";
+        return false;
+    }
+    return true;
+}
+
+bool PackageStorage::copyPackage(const String &id, const String &newId,
+                                 const String &configText, String &e) {
+    if (!validId(id) || !validId(newId)) {
+        e = "invalid package id";
+        return false;
+    }
+    String src = livePath(id), dst = livePath(newId);
+    if (!dirExists(src)) {
+        e = "package not found";
+        return false;
+    }
+    if (dirExists(dst)) {
+        e = "target already exists";
+        return false;
+    }
+    if (!FFat.mkdir(dst)) {
+        e = "cannot create package";
+        return false;
+    }
+    File d = FFat.open(src);
+    uint8_t buf[512];
+    bool ok = true;
+    for (File f = d.openNextFile(); f && ok; f = d.openNextFile()) {
+        String name = String(f.path()).substring(String(f.path()).lastIndexOf('/') + 1);
+        // Packages are flat and the config is written from the editor, not
+        // copied, so a directory here is not ours to reproduce.
+        if (f.isDirectory() || name == "config.eye") {
+            f.close();
+            continue;
+        }
+        File out = FFat.open(dst + "/" + name, FILE_WRITE);
+        if (!out) {
+            ok = false;
+        } else {
+            while (ok && f.available()) {
+                size_t n = f.read(buf, sizeof(buf));
+                if (!n || out.write(buf, n) != n) ok = false;
+            }
+            out.close();
+        }
+        f.close();
+    }
+    d.close();
+    if (ok) ok = writeConfig(newId, configText, e);
+    if (!ok) {
+        removeTree(dst);
+        if (!e.length()) e = "copy failed";
+        return false;
+    }
+    return true;
+}

@@ -92,10 +92,11 @@ python projects/monster-eyes-port/tools/serve_web.py
 
 and open `http://localhost:8000`. It serves `web/` alongside a fake device API.
 
-The page has two tabs. Controls holds status, style selection, audio (mute,
+The page has four tabs. Controls holds status, style selection, audio (mute,
 play, and volume), screen brightness, cycling, and Wi-Fi setup. Packages holds
 the package list and the upload form, so the default view stays short on a
-phone.
+phone. Screen captures the panel. Eye config edits the active package's
+`config.eye`.
 
 Audio is controlled through `POST /api/audio/mute` (`muted`),
 `POST /api/audio/volume` (`volume`, 0-100), and `POST /api/audio/play`, which
@@ -117,6 +118,42 @@ channel on `TFT_BL` and the level is stored in NVS, so it survives a reboot.
 Values below 5% are clamped up: a screen dark enough to look broken would hide
 the control that turns it back up. Deep sleep hands the pin back to plain GPIO
 before driving it dark.
+
+## Web config editor
+
+The Eye config tab edits the active package's `config.eye`. It is a
+hand-written copy of the simulator's panel (`sim/src/config_panel.cpp`) and the
+two are meant to stay in step: the same sections in the same order, the same
+controls in each section, and the same help text on each control. A setting
+added to one belongs in the other, in `CONFIG_SECTIONS` in `web/app.js`. A `*`
+after a name means the same thing in both places -- an extension of this fork
+that a stock Adafruit Monster Eyes package will not understand.
+
+Three things can be done with an edit:
+
+- **Try it** applies it to the running eyes only. The text is held in RAM and
+  handed to the renderer instead of the package's file, so the next reboot
+  goes back to what is on the drive. Nothing is written.
+- **Overwrite this package** replaces the package's `config.eye`.
+- **Save as a new package** copies the package's bitmaps and sounds into a new
+  one with this config, and switches to it. The original is untouched.
+
+**Revert to file** drops an unsaved edit and rebuilds from the drive.
+
+Saving rewrites the file from the parsed document, so comments and formatting
+in the original `config.eye` are lost -- the simulator's Save As does the same.
+
+The endpoints are:
+
+- `GET /api/config` -- the text the eyes are running on, which is the unsaved
+  edit if there is one. `X-Config-Unsaved: 1` says which it is.
+- `POST /api/config/apply` -- body is the config; applied in RAM only.
+- `POST /api/config/overwrite` -- body is the config; written to the package.
+- `POST /api/config/save-as?id=...` -- body is the config; copies the package.
+- `POST /api/config/revert` -- discard the unsaved config.
+
+A config that will not load is rejected and the previous one is put back,
+rather than leaving the panel blank.
 
 ## Web package management
 

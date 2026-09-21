@@ -782,6 +782,10 @@ void Adafruit_Monster_Eyes::applyConfigVariant(const void *variantPtr,
 }
 
 bool Adafruit_Monster_Eyes::loadConfig(const char *path) {
+  // Text handed over by the sketch wins over the drive, which is how a setting
+  // is tried without being written anywhere.
+  if (_configText)
+    return loadConfigText(_configText);
   if (!path)
     path = _configFile;
   if (!fsMounted)
@@ -803,6 +807,25 @@ bool Adafruit_Monster_Eyes::loadConfig(const char *path) {
     return false;
   }
 
+  applyParsedConfig(&doc);
+  EYES_DBG("Loaded %s\n", path);
+  return true;
+}
+
+bool Adafruit_Monster_Eyes::loadConfigText(const char *json) {
+  JsonDocument doc;
+  const DeserializationError err = deserializeJson(doc, json);
+  if (err) {
+    EYES_ERR("Config parse error (%s); using built-in defaults\n", err.c_str());
+    return false;
+  }
+  applyParsedConfig(&doc);
+  EYES_DBG("Loaded config from memory\n");
+  return true;
+}
+
+void Adafruit_Monster_Eyes::applyParsedConfig(void *docPtr) {
+  JsonDocument &doc = *(JsonDocument *)docPtr;
   JsonVariantConst root = doc.as<JsonVariantConst>();
   // Before applyConfigRoot(), not after: extensions.display decides how many
   // eyes there are, and that changes what the rest of the parse means -- which
@@ -821,8 +844,6 @@ bool Adafruit_Monster_Eyes::loadConfig(const char *path) {
     applyConfigVariant(&rightBlock, _variant[0]);
     applyConfigVariant(&leftBlock, _variant[1]);
   }
-  EYES_DBG("Loaded %s\n", path);
-  return true;
 }
 
 // ===========================================================================

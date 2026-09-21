@@ -14,6 +14,7 @@
   <button id=tab-c role=tab aria-controls=panel-c aria-selected=true onclick="show('c')">Controls</button>
   <button id=tab-p role=tab aria-controls=panel-p aria-selected=false onclick="show('p')">Packages</button>
   <button id=tab-s role=tab aria-controls=panel-s aria-selected=false onclick="show('s')">Screen</button>
+  <button id=tab-e role=tab aria-controls=panel-e aria-selected=false onclick="show('e')">Eye config</button>
 </nav>
 
 <div id=panel-c role=tabpanel aria-labelledby=tab-c>
@@ -109,6 +110,35 @@
   <section>
     <h2>Save</h2>
     <a id=shotSave class=wide href="/api/frame" download="monster-eyes.bmp">Download a fresh capture</a>
+  </section>
+
+</div>
+
+<div id=panel-e role=tabpanel aria-labelledby=tab-e hidden>
+
+  <section>
+    <h2>config.eye <span id=cfgPkg class=tag></span></h2>
+    <!-- Mirrors the simulator's panel (sim/src/config_panel.cpp): same
+         sections in the same order, same controls, same help text. Change one
+         and change the other. Kept as a source comment because it is a note
+         to whoever edits this page, not to whoever uses it. -->
+    <div id=cfgForm>Loading…</div>
+  </section>
+
+  <section>
+    <h2>Save</h2>
+    <div class=grid>
+      <button onclick=applyConfig()>Try it</button>
+      <button class=ghost onclick=revertConfig()>Revert to file</button>
+    </div>
+    <p class=note>Try it loads the edits into the running eyes only. They are
+      gone at the next reboot unless one of the saves below is used.</p>
+    <button class=wide onclick=overwriteConfig()>Overwrite this package</button>
+    <input id=cfgSaveAs class=wide placeholder="new-package-id">
+    <button class=wide onclick=saveConfigAs()>Save as a new package</button>
+    <p id=cfgNote class=note>Bitmaps are copied; the original is untouched.
+      Saving rewrites config.eye, so comments and layout in the file are
+      lost.</p>
   </section>
 
 </div>

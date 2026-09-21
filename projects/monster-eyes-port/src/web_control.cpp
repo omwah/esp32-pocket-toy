@@ -213,6 +213,57 @@ void WebControl::startServer() {
         if (ok) ok = _eyes.reloadPackages();
         _server.send(ok ? 204 : 400, "text/plain", ok ? "" : error);
     });
+    // config.eye editing. GET hands back the text the eyes are running on,
+    // which is the unsaved edit if there is one. POST /apply tries a config
+    // without writing anything: it lives in RAM and is gone at the next
+    // reboot. /overwrite and /save-as are the two ways to keep it.
+    _server.on("/api/config", HTTP_GET, [this] {
+        String text = _eyes.configText();
+        _server.sendHeader("X-Config-Unsaved",
+                           _eyes.hasLiveConfig() ? "1" : "0");
+        _server.send(text.length() ? 200 : 404, "application/json",
+                     text.length() ? text : String("{}"));
+    });
+    _server.on("/api/config/apply", HTTP_POST, [this] {
+        String error;
+        bool ok = _server.hasArg("plain") &&
+                  _eyes.applyConfigText(_server.arg("plain"), error);
+        _server.send(ok ? 204 : 400, "text/plain", ok ? "" : error);
+    });
+    _server.on("/api/config/overwrite", HTTP_POST, [this] {
+        String error, id = _eyes.packageId(_eyes.style());
+        bool ok = _server.hasArg("plain") &&
+                  _eyes.applyConfigText(_server.arg("plain"), error) &&
+                  _storage.writeConfig(id, _server.arg("plain"), error);
+        if (ok) {
+            // The file now says what RAM says, so drop the unsaved copy and
+            // rebuild from the drive -- the state a reboot would land in.
+            _eyes.clearLiveConfig();
+            ok = _eyes.reloadPackages(id);
+        }
+        _server.send(ok ? 204 : 400, "text/plain", ok ? "" : error);
+    });
+    _server.on("/api/config/revert", HTTP_POST, [this] {
+        // Drop the unsaved edit and rebuild from the drive.
+        String id = _eyes.packageId(_eyes.style());
+        _eyes.clearLiveConfig();
+        _server.send(_eyes.reloadPackages(id) ? 204 : 500);
+    });
+    _server.on("/api/config/save-as", HTTP_POST, [this] {
+        String error, id = _eyes.packageId(_eyes.style()),
+                      newId = _server.arg("id");
+        if (!_server.hasArg("plain") || !newId.length()) {
+            _server.send(400, "text/plain", "id and config required");
+            return;
+        }
+        bool ok = _storage.copyPackage(id, newId, _server.arg("plain"), error);
+        if (ok) {
+            _eyes.clearLiveConfig();
+            ok = _eyes.reloadPackages(newId);
+            manualStyleSelected();
+        }
+        _server.send(ok ? 201 : 400, "text/plain", ok ? "" : error);
+    });
     _server.on("/api/cycle", HTTP_POST, [this] {
         if (_server.hasArg("interval"))
             _interval =
