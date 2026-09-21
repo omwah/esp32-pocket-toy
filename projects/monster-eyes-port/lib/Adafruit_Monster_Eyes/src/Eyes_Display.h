@@ -34,6 +34,8 @@
 
 #include "Eyes_Platform.h"
 
+#include <limits.h>
+
 /**
  * @brief Abstract display backend.
  *
@@ -188,6 +190,17 @@ public:
     (void)gap;
     return false;
   }
+
+  /**
+   * @brief Passed to setEyeGap() for "use your own layout".
+   *
+   * The backend outlives the renderer -- the sketch builds it once and rebuilds
+   * the eyes for every package -- so a gap set by one package would otherwise
+   * still be in force for the next one, which never mentioned it. begin()
+   * therefore always states the gap, and this is what it states when the
+   * config says nothing.
+   */
+  static const int EYE_GAP_DEFAULT = INT_MIN;
 
   /** @brief Current eye size in pixels. @return Size, or 0 before setEyeSize().
    */

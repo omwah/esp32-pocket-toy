@@ -614,8 +614,11 @@ void Adafruit_Monster_Eyes::applyConfigExtensions(const void *variantPtr) {
     // style changes, so a package that says nothing has to put back the pair a
     // previous package may have taken away.
     _display->setEyeCount(_singleEye ? 1 : 2);
-    if (_eyeGapSet && !_singleEye)
-      _display->setEyeGap(_eyeGap);
+    // Always stated, not only when the config asks: the backend outlives the
+    // renderer, so a gap from the package before this one would otherwise
+    // still be in force.
+    if (!_singleEye)
+      _display->setEyeGap(_eyeGapSet ? _eyeGap : Eyes_Display::EYE_GAP_DEFAULT);
     _numEyes = _display->eyeCount();
     // The startup banner prints the eye count before the config is read, so
     // say it again here where it is settled.

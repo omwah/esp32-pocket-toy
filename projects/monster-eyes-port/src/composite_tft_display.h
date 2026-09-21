@@ -47,6 +47,10 @@ public:
     // off one side of it.
     bool setEyeGap(int gap) override {
         if (_numEyes != 2) return false;
+        if (gap == EYE_GAP_DEFAULT) {  // Back to the panel's own layout
+            _nudge = 0;
+            return true;
+        }
         // Negative gaps overlap the two squares, which is how a face whose
         // eyes nearly touch is laid out: a drawn eye leaves cream margin
         // inside its square, and where they overlap both write that same
