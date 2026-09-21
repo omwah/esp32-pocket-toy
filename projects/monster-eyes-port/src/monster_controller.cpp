@@ -87,7 +87,21 @@ bool MonsterController::refreshPackages() {
             }
         start = end + 1;
     }
-    ordered.insert(ordered.end(), _packages.begin(), _packages.end());
+    // What is left never appeared in the saved order: packages added since it
+    // was written, which after an `uploadfs` can be several at once. Appending
+    // them put new eyes at the end of the list in whatever order the
+    // filesystem happened to hand them over, so a fresh package landed after
+    // twenty-five others no matter what it was called.
+    //
+    // They go in alphabetically instead, each before the first entry that
+    // sorts after it. A list left in its discovered order stays alphabetical;
+    // one the user has arranged by hand keeps that arrangement, and a new eye
+    // lands somewhere sensible within it rather than always at the bottom.
+    for (const auto &fresh : _packages) {
+        auto at = ordered.begin();
+        while (at != ordered.end() && at->id.compareTo(fresh.id) < 0) ++at;
+        ordered.insert(at, fresh);
+    }
     _packages.swap(ordered);
     String reconciled;
     for (const auto &p : _packages) {
