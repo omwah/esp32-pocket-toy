@@ -941,6 +941,12 @@ bool writeGazeReturnGif(EyeHost &host, LinuxDisplay &display,
   if (!restart())
     return false;
   Adafruit_Monster_Eyes *eyes = host.eyes();
+  // What the package asked for, before this function turns blinking off to
+  // settle the ends. --no-auto-blink has already been applied by load(), so
+  // reading it back here is how the config's own setting survives: putting
+  // opt.autoBlink back in the middle of the loop instead made a package that
+  // says "never blink" blink all the way through its GIF.
+  const bool blinkWanted = eyes->autoBlink();
   eyes->setAutoBlink(false);
   for (int i = 0; i < start; ++i) {
     setScreenGaze(*eyes, 0.0f, 0.0f);
@@ -967,7 +973,7 @@ bool writeGazeReturnGif(EyeHost &host, LinuxDisplay &display,
     } else if (i == 1) {
       // Let go, and let the eye do what it does.
       eyes->releaseGaze();
-      eyes->setAutoBlink(opt.autoBlink);
+      eyes->setAutoBlink(blinkWanted);
     }
     if (intoReturn >= 1) {
       if (intoReturn >= glide) {
