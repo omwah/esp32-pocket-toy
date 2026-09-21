@@ -33,6 +33,9 @@ public:
   /** @brief Left edge of an eye. @param eye Index. @return Panel X. */
   static constexpr int eyeX(int eye) { return eye ? 174 : 18; }
 
+  // The gap those default positions leave between the two 128 px squares.
+  static constexpr int DEFAULT_GAP = 174 - (18 + 128);
+
   LinuxDisplay() : Eyes_StripeDisplay(2, 16) {}
 
   // Mirrors CompositeTftDisplay: a package may ask for one eye filling the
@@ -44,6 +47,25 @@ public:
       _numEyes = eyes;
       _panelW = 0; // Ask panelSize() again; the layout differs
     }
+    return true;
+  }
+
+  // How far apart the pair sits. Each eye moves half the difference from the
+  // default, so they close on the middle of the panel rather than drifting off
+  // one side of it. Mirrors CompositeTftDisplay.
+  bool setEyeGap(int gap) override {
+    if (_numEyes != 2)
+      return false;
+    // Negative gaps overlap the two squares, which is how a face whose eyes
+    // nearly touch is laid out: a drawn eye leaves cream margin inside its
+    // square, and where the squares overlap both write that same background.
+    // Half a square is as far as that can sensibly go.
+    if (gap < -(eyeSize() ? eyeSize() : 128) / 2)
+      gap = -(eyeSize() ? eyeSize() : 128) / 2;
+    const int limit = 18 * 2 + DEFAULT_GAP; // Eyes meet the panel edges
+    if (gap > limit)
+      gap = limit;
+    _nudge = (DEFAULT_GAP - gap) / 2;
     return true;
   }
 
@@ -100,7 +122,9 @@ protected:
   void flushStripe(int eye, int x0, int width, uint16_t *pixels) override {
     if (!_fb)
       return;
-    const int x = (_numEyes == 1) ? originX() + x0 : eyeX(eye & 1) + x0;
+    const int x = (_numEyes == 1)
+                      ? originX() + x0
+                      : eyeX(eye & 1) + ((eye & 1) ? -_nudge : _nudge) + x0;
     const int y0 = (_numEyes == 1) ? originY() : EYE_Y;
     // Row-major, `width` pixels per row, top row first -- the layout
     // TFT_eSPI::pushImage() expects, so the copy here is the same copy the
@@ -118,6 +142,7 @@ protected:
 
 private:
   uint16_t *_fb = nullptr;   ///< PANEL_W * PANEL_H pixels
+  int _nudge = 0;            ///< Pixels each eye moves in from its default
   int _reserveTop = 0;       ///< Rows at the top the host owns
   int _reserveBottom = 0;    ///< Rows at the bottom the host owns
   uint16_t _background = 0;  ///< Last clear() colour

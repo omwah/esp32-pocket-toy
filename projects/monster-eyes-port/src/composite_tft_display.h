@@ -21,6 +21,9 @@ public:
     static constexpr int EYE_Y = 56;
     static constexpr int eyeX(int eye) { return eye ? 174 : 18; }
 
+    // The gap those default positions leave between the two 128 px squares.
+    static constexpr int DEFAULT_GAP = 174 - (18 + 128);
+
     explicit CompositeTftDisplay(TFT_eSPI &tft)
         : Eyes_StripeDisplay(2, 16), _tft(tft) {}
 
@@ -36,6 +39,23 @@ public:
             // between the two layouts.
             _panelW = 0;
         }
+        return true;
+    }
+
+    // How far apart the pair sits. Each eye moves half the difference from the
+    // default, so they close on the middle of the panel rather than drifting
+    // off one side of it.
+    bool setEyeGap(int gap) override {
+        if (_numEyes != 2) return false;
+        // Negative gaps overlap the two squares, which is how a face whose
+        // eyes nearly touch is laid out: a drawn eye leaves cream margin
+        // inside its square, and where they overlap both write that same
+        // background. Half a square is as far as that can sensibly go.
+        const int floorGap = -(eyeSize() ? eyeSize() : 128) / 2;
+        if (gap < floorGap) gap = floorGap;
+        const int limit = 18 * 2 + DEFAULT_GAP;  // Eyes meet the edges
+        if (gap > limit) gap = limit;
+        _nudge = (DEFAULT_GAP - gap) / 2;
         return true;
     }
 
@@ -116,7 +136,9 @@ protected:
     void flushStripe(int eye, int x0, int width, uint16_t *pixels) override {
         // With one eye the base class has already centred it, so use the
         // origin it worked out rather than the two-eye offsets.
-        const int x = (_numEyes == 1) ? originX() + x0 : eyeX(eye & 1) + x0;
+        const int x = (_numEyes == 1)
+                          ? originX() + x0
+                          : eyeX(eye & 1) + ((eye & 1) ? -_nudge : _nudge) + x0;
         const int y = (_numEyes == 1) ? originY() : EYE_Y;
 
         // Clip to the rows the renderer is allowed. The stripe is row-major
@@ -141,6 +163,7 @@ private:
     TFT_eSPI &_tft;
     int _reserveTop = 0;     ///< Rows at the top the sketch owns
     int _reserveBottom = 0;  ///< Rows at the bottom the sketch owns
+    int _nudge = 0; ///< Pixels each eye moves inwards from its default spot
     uint16_t *_mirror = nullptr;
     uint16_t _background = 0;
     bool _capturing = false;

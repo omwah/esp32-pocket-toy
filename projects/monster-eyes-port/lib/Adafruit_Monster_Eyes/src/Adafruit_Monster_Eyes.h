@@ -852,7 +852,9 @@ private:
   bool _gazeExternal;   ///< Something else owns the gaze
   bool _pupilExternal;  ///< Something else owns the pupil
   bool _blinkExternal;  ///< Something else owns the lids
-  bool _singleEye;      ///< extensions.display.singleEye asked for one eye
+  bool _singleEye;
+  int _eyeGap;     ///< Pixels between the two eyes, when _eyeGapSet
+  bool _eyeGapSet; ///< Whether the config asked for a particular gap      ///< extensions.display.singleEye asked for one eye
   bool _autoBlink;      ///< Blink spontaneously
   bool _autoGaze;       ///< Look around spontaneously
   float _blinkForced;   ///< Phase to hold when _blinkExternal

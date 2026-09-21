@@ -584,6 +584,14 @@ void Adafruit_Monster_Eyes::applyConfigExtensions(const void *variantPtr) {
     // One eye filling the panel rather than two side by side. The backend
     // rearranges itself; one that cannot simply keeps the pair, so a package
     // asking for this on hardware that cannot do it still runs.
+    // How far apart the pair sits, in panel pixels. Absent leaves the
+    // backend's own layout alone.
+    JsonVariantConst gap = display["eyeGap"];
+    if (gap.is<int>() || gap.is<float>()) {
+      _eyeGap = gap.as<int>();
+      _eyeGapSet = true;
+    }
+
     JsonVariantConst v = display["singleEye"];
     if (v.is<bool>() || v.is<int>())
       _singleEye = v.as<bool>();
@@ -606,6 +614,8 @@ void Adafruit_Monster_Eyes::applyConfigExtensions(const void *variantPtr) {
     // style changes, so a package that says nothing has to put back the pair a
     // previous package may have taken away.
     _display->setEyeCount(_singleEye ? 1 : 2);
+    if (_eyeGapSet && !_singleEye)
+      _display->setEyeGap(_eyeGap);
     _numEyes = _display->eyeCount();
     // The startup banner prints the eye count before the config is read, so
     // say it again here where it is settled.

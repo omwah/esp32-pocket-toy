@@ -126,6 +126,8 @@ void Adafruit_Monster_Eyes::applyDefaults(void) {
   _gazeExternal = _pupilExternal = _blinkExternal = false;
   _autoBlink = _autoGaze = true;
   _singleEye = false;
+  _eyeGap = 0;
+  _eyeGapSet = false; // Whatever the backend lays out, until a package says
   _blinkForced = 0.0f;
   _clockOffset = 0;
 

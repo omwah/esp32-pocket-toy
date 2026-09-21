@@ -167,6 +167,28 @@ public:
     return false;
   }
 
+  /**
+   * @brief Ask the backend to move the two eyes closer together or further
+   *        apart.
+   *
+   * Extension, not in upstream Monster Eyes. Where the eyes sit is the
+   * backend's business, but how far apart a FACE wears them is the package's:
+   * a character drawn with its eyes close together looks wrong laid out on
+   * whatever centres the panel happens to use.
+   *
+   * The gap is between the two eye squares, in panel pixels, and each eye
+   * moves half of the difference so the pair stays centred. A backend that
+   * cannot do it, or that is showing one eye, returns false.
+   *
+   * @param gap Pixels between the eyes. Negative overlaps the two squares,
+   *            which a drawn eye with margin inside its square can afford.
+   * @return true if the backend now uses that gap.
+   */
+  virtual bool setEyeGap(int gap) {
+    (void)gap;
+    return false;
+  }
+
   /** @brief Current eye size in pixels. @return Size, or 0 before setEyeSize().
    */
   int eyeSize(void) const { return _eyeSize; }
