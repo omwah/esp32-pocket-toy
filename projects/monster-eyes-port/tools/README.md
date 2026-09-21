@@ -10,6 +10,9 @@ python projects/monster-eyes-port/tools/make_deer_eye.py
 python projects/monster-eyes-port/tools/make_sauron_eye.py
 ```
 
+[`../EYES.md`](../EYES.md) describes the four packages these scripts
+build and what was measured to build them; this file is about the machinery.
+
 `tools/eye_textures.py` is the shared module. `make_goat_eye.py` is the worked
 example of using it, and is the one to copy when starting a new package;
 `make_deer_eye.py` uses it too, with parameters of its own. `make_pomni_eye.py`

@@ -1,51 +1,30 @@
-# Monster Eyes renderer migration
+# Monster Eyes
 
-Experimental migration of `uncanny-eyes` to Adafruit's Monster Eyes renderer.
-It is kept separate until the renderer, runtime style loading, touch, audio,
-Wi-Fi, and overlays reach feature parity with the production application.
+Animated eyes for the Hosyond ES3C28P: an ESP32-S3 with a 320x240 ILI9341
+panel, a capacitive touch layer, an ES8311 codec and a battery. Two eyes blink,
+glance about and dilate on the screen; the look of them comes from packages on
+the device's own filesystem, which can be swapped by touch, over serial, or from
+a phone on the same network.
 
-## Current milestone
+Twenty-six packages ship with it, from Adafruit's own Monster Eyes artwork to
+eyes generated here from photographs and from published models of iris
+structure. New ones can be uploaded to a running device without rebuilding
+anything, and their settings edited on the device or in the desktop preview.
 
-- Uses the upstream Monster Eyes animation and polar-map renderer.
-- Implements a `TFT_eSPI` stripe backend for two 128x128 eyes on one 320x240
-  ILI9341 panel.
-- Mounts the existing PlatformIO FATFS partition through `FFat`.
-- Reads and applies package `config.eye` files through the Monster Eyes JSON parser.
-- Loads standard 24-bit texture BMPs and 1-bit eyelid BMPs from FATFS.
-- Includes all 14 upstream M4 EYES packages and scales their geometry at runtime.
-- Adds directly installable packages for all ten production Uncanny Eyes styles,
-  generated from their editable artwork and including package-local sounds.
-- Extends the renderer with `slitPupilHorizontal`, laying the slit pupil across
-  the eye rather than up it, and `slitPupilRounded`, which blunts its ends
-  instead of bringing them to a point -- between them, the bar a deer, goat or
-  horse has rather than the lens a cat has. The slit radius is measured along
-  the slit whichever way it lies.
-- Extends the renderer with `roll`, turning the whole eyeball about its own
-  optic axis: pupil, iris and sclera together, with the eyelids left where they
-  are, because in life the globe rotates inside them. The two eyes take
-  opposite angles, which is what a grazing animal does as its head goes down --
-  a goat counter-rotates each eye by 50 degrees or more to keep its slit pupil
-  level with the horizon. The map is sampled through the rotation rather than
-  rebuilt, so it costs two multiplies a pixel and nothing at all when the eye
-  is level.
-- Adds `extensions.animation.cyclovergence`, which rolls the eyes as the gaze
-  goes down and leaves them level looking ahead or up. Real cyclovergence
-  follows the head and there is no head here, so the gaze stands in for it:
-  looking down is the grazing posture. The value is the angle at full downward
-  gaze.
-- Adds `irisDilation`, which dilates by resizing the iris rather than by
-  opening a pupil in it. For an eye whose iris IS its pupil -- a drawn disc of
-  pattern with no hole -- opening one distorts the pattern as it squeezes it
-  outward and swallows anything at its edge. Resizing keeps the disc whole and
-  shows the sclera behind it.
-- Adds three extensions for eyes that are drawn rather than grown:
-  `texturedPupil` fills the pupil from the iris texture's centre, so a pattern
-  that runs to the middle closes over it instead of being cut out by a flat
-  disc; `extensions.animation.gazeRange` scales how far the eye may look, since
-  a drawing has a white to stay inside and a box to stay inside where an
-  eyeball has neither; and `extensions.display.eyeGap` sets how far apart the
-  two eyes sit, because how far apart a face wears them is the package's
-  business and not the panel's.
+## What it does
+
+- Draws with Adafruit's Monster Eyes animation and polar-map renderer, through a
+  `TFT_eSPI` stripe backend for two 128x128 eyes on one 320x240 ILI9341 panel.
+- Keeps packages on a FATFS partition reached through `FFat`, and reads each
+  one's `config.eye` with the Monster Eyes JSON parser.
+- Loads standard 24-bit texture BMPs and 1-bit eyelid BMPs, scaling each
+  package's geometry to the panel at runtime.
+- Ships the fourteen M4 EYES packages, ten more drawn from the Uncanny Eyes
+  styles with package-local sounds, and two of its own.
+- Extends the renderer for eyes it was not written for: slit pupils that lie
+  across the eye, eyeballs that roll, an iris that dilates instead of a pupil,
+  and more. They are listed under [what this fork
+  adds](#what-this-fork-adds-to-the-renderer) below.
 - Discovers package directories under `/eyes`; eye names and paths are not
   compiled into firmware.
 - Resolves package-relative asset paths and reconstructs the renderer safely
@@ -217,147 +196,118 @@ with `/eyes/.backup-<token>` for the package being replaced) so that publishing
 is a rename within one directory. The package scanner skips names beginning
 with a dot, and any left over from an interrupted upload are removed at boot.
 
-## The deer package
+## Linux preview
 
-`data/eyes/deer` is the one migrated style whose artwork is generated rather
-than carried over, because the original faked its horizontal pupil by painting
-two black lobes into the bottom rows of the iris texture, at the angles left
-and right of centre -- with a round pupil that is the only way to widen one
-sideways. The renderer builds the slit itself now, so the texture is iris all
-the way down and the fibres reach the pupil edge:
-
-```sh
-python projects/monster-eyes-port/tools/make_deer_eye.py
-```
-
-The pupil is a bar with blunt ends (`slitPupilHorizontal` and
-`slitPupilRounded`), kept well short of the iris so it reads as a rounded
-oval. Its height is not set directly: `pupilMax` picks which contour of the
-morph from iris circle to bar the pupil edge lands on, so thinning the bar
-means lowering it.
-
-Colours are read off photographs of a sika doe and a red deer. The pupil is
-photographed as a dark blue-grey rather than black. Deer sclera is brown and
-barely shows, so it is near black.
-
-The iris used to be that flat brown with stripes of angular noise over it,
-which read as a sunburst: a stripe of constant width running the whole depth of
-the iris is not what a fibre looks like. It is now built by the same
-feature-agglomeration model as the goat -- see `tools/README.md` -- with
-coarser, fewer fibres, a weaker collarette and shallower crypts, because a
-deer's iris is smoother and less combed than a goat's. It keeps its even
-lighting: no darkening towards the rim and no shading from one side to the
-other, which reads well on an eye this dark.
-
-The eyelids are generated as well. The opening is an ellipse, which has a
-vertical tangent at each corner, so the lids meet there roundly and the eye
-keeps its width to the edge; the migrated pair tapered to a point instead.
-Their closed edges are arcs rather than straight lines, because the renderer
-interpolates lid shape between open and closed on every frame and a flat lid
-closes like a shutter.
-
-## The goat package
-
-`data/eyes/goat` is generated too, for the same reason the deer package is:
-what it carried before was a cat's eye under another name -- a vertical slit
-in a grey-blue iris, neither of which a goat has.
+`sim/` builds `eye-sim`, a desktop preview that runs this renderer against a
+simulated 320x240 panel. The library sources are compiled from `lib/`
+unmodified against a small Arduino shim, so what it shows is what the device
+would draw; only the display backend is different. It also captures frame
+sequences as PNGs with JSON state sidecars, for analysis without hardware.
 
 ```sh
-python projects/monster-eyes-port/tools/make_goat_eye.py
+cmake -B projects/monster-eyes-port/sim/build projects/monster-eyes-port/sim
+cmake --build projects/monster-eyes-port/sim/build -j
+cd projects/monster-eyes-port && ./sim/build/eye-sim --eye deer
 ```
 
-It is the worked example for `tools/eye_textures.py`, the shared artwork
-module, and the script to copy when generating a package of your own.
+`--panel` (or `p` in the window) opens a live `config.eye` editor to the right of
+the display, with a style drop-down and a help strip under the preview: move a
+slider and the eye changes as you watch. The edited config
+is served to the renderer from memory rather than written out, so nothing under
+`data/` is touched and no scratch files exist; Save writes a new package,
+copying the bitmaps and preserving keys the renderer does not parse, such as
+`extensions`.
 
-The pupil is the feature that says goat: a wide horizontal bar with blunt ends
-(`slitPupilHorizontal` and `slitPupilRounded`), reaching most of the way across
-the iris, which is what separates it from the deer's shorter oval. As with the
-deer, its height comes from `pupilMax` rather than being set directly.
+Needs `cmake`, `g++`, `zlib1g-dev` and, for the window, `libsdl3-dev`. Dear
+ImGui is vendored under `sim/third_party/`. See `sim/README.md` for the keys,
+the capture options and what the shim covers.
 
-Colours are read off photographs of domestic goats: light brown through the
-body of the iris, browner towards a distinct dark limbal ring. The base is
-duller than the raw mid-iris sample on purpose, because the fibres put the
-light back and a base that starts at the measured value ends up reading as
-yellow. The lid shades the upper third a stop darker. There is effectively no
-white -- the globe is iris nearly edge to edge -- so the sclera is near black
-with a brown cast. The pupil is flatly black.
+## Screenshots
 
-The fibre pattern follows a published model rather than an invented one: Shah
-and Ross, *Generating Synthetic Irises by Feature Agglomeration* (ICIP 2006),
-with Lefohn et al., *An Ocularist's Approach to Human Iris Synthesis* (IEEE
-CG&A 2003), for the layered view of an eye. The implementation is shared, in
-`tools/eye_textures.py`; **`tools/README.md` documents the model, every
-parameter, and how to start a new package from it**.
+`GET /api/frame` returns a screenshot of the panel as a 320x240 24-bit BMP, and
+the web interface shows it under a Screen tab with a capture button, a live
+mode and a download link.
 
-Where the top of the eye falls along the texture's angular axis was measured
-rather than assumed: a band painted at 0.25 came out on the right of the
-rendered eye and one at 0.75 on the left, so the top is 0.0.
+The panel cannot be read back: MISO is not dependable on this board and an
+ILI9341 returns mangled 18-bit data anyway. Instead the display backend keeps a
+mirror of the panel in PSRAM, and the request arms it, draws one frame, and
+serves the mirror. The render loop is the only writer and the request runs on
+that same task, so there is nothing to synchronise and nothing to copy on a
+frame nobody asked about.
 
-The eyelids are generated as the deer's are, an elliptical opening with
-`tracking` off, and give the eye its wide, flat oval.
+What it captures is the two eyes and the background they sit on. The status
+icons and the touch controls are drawn straight to the TFT by the sketch, so
+they never pass through the backend and are not in the picture.
 
-The iris is deliberately smaller than the eyeball (100 against 125) so the eye
-has somewhere to travel when it looks around. Filling the eyeball looked right
-in a still frame and moved the pupil one pixel over 150 frames: with a bar
-pupil spanning the iris there is nothing left to see move. The lid opening was
-narrowed to match (0.86 of the half-width), so the spare sclera does not show
-as a dark band down each side at rest -- it appears as a dark corner only when
-the eye actually looks that way, which is what the photographs show.
+## Eye packages
 
-`gazeMax` is raised to five seconds because a goat holds its gaze and turns its
-head. Its one dramatic eye movement is not lateral at all: each eye
-counter-rotates about its own optic axis by 50 degrees or more as the head goes
-down to graze, keeping the slit level with the horizon. The package asks for
-that with `extensions.animation.cyclovergence: 50`, which the renderer ties to
-downward gaze, since a head is the one thing this toy has not got.
+`data/eyes/` holds twenty-six of them. Most are Adafruit's own artwork or the
+Uncanny Eyes styles; four are generated here, from photographs of real eyes or
+from the shapes of a drawn one.
 
-## The Eye of Sauron package
+[`EYES.md`](EYES.md) describes those four and what was measured to
+build them, and [`tools/README.md`](tools/README.md) documents the iris model
+they share and how to start a package of your own.
 
-`data/eyes/sauron` is an original package rather than a migrated style. Its
-artwork is generated too:
+## What this fork adds to the renderer
 
-```sh
-python projects/monster-eyes-port/tools/make_sauron_eye.py
-```
+`lib/Adafruit_Monster_Eyes` is Adafruit Monster Eyes 1.0.0 at commit `adc06f7`,
+under its MIT license, with display backends for other boards removed and
+`Eyes_Assets.cpp` reading assets through ESP32 `FFat`. USB mass-storage mode is
+off, since packages are managed over the network instead.
 
-The flames are drawn straight into the renderer's polar texture space, where
-the horizontal axis is the angle around the eye and the vertical axis is the
-distance in from the rim. Every term in the generator is a function of the
-angle alone scaled by a function of the distance alone, so a tongue of flame
-arrives on the screen pointing straight out from the pupil: nothing leans,
-curls or spirals. `irisSpin` and `scleraSpin` are both zero, so the fire never
-turns around the iris either -- it only reaches outward. The one movement it
-has comes from the pupil: dilating it rescales the iris texture radially, and
-the narrow `pupilMin`/`pupilMax` range makes that read as the fire surging in
-and out.
+Everything below is something this fork added to it. Each is a key in
+`config.eye`, and each appears in both config editors with a `*` after its
+name, because a package using one will not load the same way on a stock Monster
+Eyes build.
 
-Layout and palette were measured off the reference footage ring by ring and
-sector by sector around the pupil: a white-hot collar on the pupil edge, the
-fire at its hottest a little way out from it and spent by the rim, and the
-flames to the left and right of the pupil burning far cooler than those above
-and below it -- deep blood red against yellow-white. That cool wedge belongs
-to the inner half of the fire in the footage, so the generator eases it off
-again towards the tips, where the sideways flames are the ones that throw the
-furthest. The sclera is a dim ember dying before the eyeball's rim, and
-`backColor` is black, so the eye reads as fire floating in the dark.
+### Slit pupils that lie across the eye
 
-The package carries no eyelid bitmaps at all. A missing lid loads as "fully
-out of the way" for both its open and its closed position, so the blink timer
-still runs but moves nothing: the Eye does not blink and no lid ever crosses
-the fire.
+`slitPupilHorizontal` lays the slit across the eye rather than up it, and
+`slitPupilRounded` blunts its ends instead of bringing them to a point.
+Between them, the bar a deer, goat or horse has rather than the lens a cat has.
+The slit radius is measured along the slit whichever way it lies.
 
-The fire moves by `irisFlow` rather than by spinning, so the flames lick
-outward and never travel around the iris. The iris is nearly the whole
-eyeball, which leaves the sclera as no more than a dim ember at the rim.
+### Rolling the eyeball
 
-Both this package and the renderer settings behind it were tuned against
-screenshots pulled off the board with `GET /api/frame`, not against the
-generator's own preview: at 128 px an eye loses detail the preview keeps, and
-three things that looked right at 240 px -- the brightness of the middle, the
-depth of the dark flanks and the raggedness of the flame tips -- did not
-survive the trip.
+`roll` turns the whole eyeball about its own optic axis: pupil, iris and sclera
+together, with the eyelids left where they are, because in life the globe
+rotates inside them. The two eyes take opposite angles. The map is sampled
+through the rotation rather than rebuilt, so it costs two multiplies a pixel and
+nothing at all when the eye is level.
 
-## Radial flow
+`extensions.animation.cyclovergence` drives that from the gaze: the eyes roll as
+it goes down and sit level looking ahead or up. Real cyclovergence follows the
+head, and a grazing animal counter-rotates each eye by 50 degrees or more to
+keep its slit pupil level with the horizon; there is no head here, so looking
+down stands in for the grazing posture. The value is the angle at full downward
+gaze.
+
+### Pupils for a drawn eye
+
+`texturedPupil` fills the pupil from the iris texture's centre, so a pattern
+that runs to the middle closes over it instead of being cut out by a flat disc.
+
+`irisDilation` goes further and dilates by resizing the iris rather than by
+opening a pupil in it. For an eye whose iris IS its pupil -- a drawn disc of
+pattern with no hole -- opening one distorts the pattern as it squeezes it
+outward and swallows anything at its edge. Resizing keeps the disc whole and
+shows the sclera behind it. `pupilMin` and `pupilMax` then mean the smallest and
+largest the disc gets, and the range has to be generous: the dilation animator
+is fractal noise that stays near the middle of whatever range it is given.
+
+### Where the eyes sit and how far they look
+
+`extensions.display.eyeGap` sets how far apart the two eyes sit, in panel
+pixels, because how far apart a face wears them is the package's business and
+not the panel's. A negative gap overlaps the two eye squares, which a drawing
+with margin inside its own square can afford.
+
+`extensions.animation.gazeRange` scales how far the eye may look, as a fraction
+of what the geometry allows. An eyeball needs all of it; a drawing has a white
+to stay inside and a box to stay inside, and at full travel leaves both.
+
+### Radial flow
 
 `irisFlow` animates an iris without turning it. The renderer already had
 `irisSpin`, which rotates the texture, and for anything whose pattern means
@@ -383,24 +333,7 @@ test uses the undisplaced row, so the pupil's own edge never moves.
 
 Per pixel this is a table lookup, a multiply and a divide.
 
-## Screenshots
-
-`GET /api/frame` returns a screenshot of the panel as a 320x240 24-bit BMP, and
-the web interface shows it under a Screen tab with a capture button, a live
-mode and a download link.
-
-The panel cannot be read back: MISO is not dependable on this board and an
-ILI9341 returns mangled 18-bit data anyway. Instead the display backend keeps a
-mirror of the panel in PSRAM, and the request arms it, draws one frame, and
-serves the mirror. The render loop is the only writer and the request runs on
-that same task, so there is nothing to synchronise and nothing to copy on a
-frame nobody asked about.
-
-What it captures is the two eyes and the background they sit on. The status
-icons and the touch controls are drawn straight to the TFT by the sketch, so
-they never pass through the backend and are not in the picture.
-
-## One big eye instead of two
+### One big eye instead of two
 
 A package can ask for a single eye filling the panel rather than the usual
 pair:
@@ -434,7 +367,7 @@ the area. `begin()` already steps the eye size down when the tables or the
 texture budget will not fit, so on a constrained board a single eye simply comes
 out smaller rather than failing.
 
-## Holding the eye still
+### Holding the eye still
 
 A package can switch off either autonomous behaviour from its `config.eye`,
 under the `extensions` block the audio settings already live in:
@@ -460,63 +393,26 @@ identically on the board and in the Linux preview. Pointing the gaze
 deliberately still works with `autoGaze` off — that is the point of it — and
 `blink()` still blinks an eye whose `autoBlink` is off.
 
-## Linux preview
+## Package validation
 
-`sim/` builds `eye-sim`, a desktop preview that runs this renderer against a
-simulated 320x240 panel. The library sources are compiled from `lib/`
-unmodified against a small Arduino shim, so what it shows is what the device
-would draw; only the display backend is different. It also captures frame
-sequences as PNGs with JSON state sidecars, for analysis without hardware.
-
-```sh
-cmake -B projects/monster-eyes-port/sim/build projects/monster-eyes-port/sim
-cmake --build projects/monster-eyes-port/sim/build -j
-cd projects/monster-eyes-port && ./sim/build/eye-sim --eye deer
-```
-
-`--panel` (or `p` in the window) opens a live `config.eye` editor to the right of
-the display, with a style drop-down and a help strip under the preview: move a
-slider and the eye changes as you watch. The edited config
-is served to the renderer from memory rather than written out, so nothing under
-`data/` is touched and no scratch files exist; Save writes a new package,
-copying the bitmaps and preserving keys the renderer does not parse, such as
-`extensions`.
-
-Needs `cmake`, `g++`, `zlib1g-dev` and, for the window, `libsdl3-dev`. Dear
-ImGui is vendored under `sim/third_party/`. See `sim/README.md` for the keys,
-the capture options and what the shim covers.
-
-## Migration validation
-
-`validation/migrated-styles.json` records the accepted result and intentional
-renderer differences for all 23 production styles. Validate the complete
-manifest and every referenced package asset with:
+`validation/migrated-styles.json` records the accepted result, and the
+deliberate differences from the artwork each package started from, for the
+styles carried over from Uncanny Eyes. It checks the manifest and every asset
+each package refers to:
 
 ```sh
 python projects/monster-eyes-port/tools/validate_migration.py
 ```
 
-The vendored Monster Eyes core is based on Adafruit Monster Eyes 1.0.0 commit
-`adc06f7` and retains its MIT license. Display backends unrelated to this board
-were removed. `Eyes_Assets.cpp` was adapted to use ESP32 `FFat`; USB mass-storage
-mode is disabled because assets will ultimately be managed by the web UI.
-
 ## Build and flash
+
+`uploadfs` writes the packages, `upload` writes the firmware:
 
 ```sh
 micromamba run -n platformio pio run -d projects/monster-eyes-port -t uploadfs
 micromamba run -n platformio pio run -d projects/monster-eyes-port -t upload
 ```
 
-To restore the production application and its asset filesystem:
-
-```sh
-micromamba run -n platformio pio run -d projects/uncanny-eyes -t uploadfs
-micromamba run -n platformio pio run -d projects/uncanny-eyes -t upload
-```
-
-## Migration status
-
-The renderer migration work is complete. The experimental project retains its
-own deployment target until final on-device acceptance, after which it can
-replace the production application without changing the package filesystem.
+`uploadfs` replaces the whole partition, so anything uploaded to the device and
+not kept under `data/` goes with it. To add or replace one package on a running
+device instead, use `tools/upload_package.py` or the web interface.
