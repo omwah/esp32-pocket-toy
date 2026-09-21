@@ -1547,25 +1547,34 @@ int runWindow(EyeHost &host, LinuxDisplay &display,
       // scale, so the render scale is raised for the text alone.
       const float textScale = (float)opt.scale * 0.5f;
       SDL_SetRenderScale(renderer, textScale, textScale);
-      SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
       const float tx = 4.0f;
       char line[256];
+      // White on its own vanishes over a pale eye -- Pomni's face is nearly
+      // white and the text sat on top of it -- so every line is drawn twice,
+      // black a pixel down and right, then white over that. Cheaper than
+      // working out what is underneath, and it reads over anything.
+      auto shadowed = [&](float x, float y, const char *str) {
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderDebugText(renderer, x + 1.0f, y + 1.0f, str);
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        SDL_RenderDebugText(renderer, x, y, str);
+      };
       Adafruit_Monster_Eyes *eyes = host.eyes();
       snprintf(line, sizeof(line), "%s  %.1f fps  %dpx",
                packages[index].id.c_str(), eyes ? eyes->frameRate() : 0.0f,
                eyes ? eyes->eyeSize() : 0);
-      SDL_RenderDebugText(renderer, tx, 4, line);
+      shadowed(tx, 4, line);
       snprintf(line, sizeof(line), "gaze %+.2f %+.2f  blink %.2f  iris %.2f",
                eyes ? screenGazeX(*eyes) : 0.0f,
                eyes ? screenGazeY(*eyes) : 0.0f,
                eyes ? eyes->blinkPhase() : 0.0f,
                eyes ? eyes->irisFraction() : 0.0f);
-      SDL_RenderDebugText(renderer, tx, 16, line);
+      shadowed(tx, 16, line);
       snprintf(line, sizeof(line), "auto gaze %s  blink %s  mouse %s   ? keys",
                (eyes && eyes->autoGaze()) ? "on" : "off",
                (eyes && eyes->autoBlink()) ? "on" : "off",
                mouseGaze ? "on" : "off");
-      SDL_RenderDebugText(renderer, tx, 28, line);
+      shadowed(tx, 28, line);
       SDL_SetRenderScale(renderer, 1.0f, 1.0f);
     }
 
