@@ -293,15 +293,17 @@ var CONFIG_SECTIONS = [
       { key: 'slitPupilRadius', type: 'int', min: -1, max: 250, def: 0,
         help: '0 for a round pupil, -1 to derive it, or the slit length in pixels.' },
       { key: 'pupilMin', type: 'float', min: 0, max: 1, step: 0.001, def: 0.05,
-        help: 'Smallest pupil as a fraction of the iris.' },
+        help: 'Smallest pupil as a fraction of the iris, or the smallest the iris disc gets with irisDilation on.' },
       { key: 'pupilMax', type: 'float', min: 0, max: 1, step: 0.001, def: 0.25,
-        help: 'Largest pupil as a fraction of the iris.' },
+        help: 'Largest pupil as a fraction of the iris, or the largest the iris disc gets with irisDilation on.' },
       { key: 'slitPupilHorizontal', type: 'bool', def: false, ext: true,
         help: 'Lay the slit on its side.' + EXT },
       { key: 'slitPupilRounded', type: 'bool', def: false, ext: true,
         help: 'Round the ends of the slit.' + EXT },
       { key: 'texturedPupil', type: 'bool', def: false, ext: true,
-        help: "Fill the pupil from the iris texture's centre instead of with a flat colour, for a drawn eye whose pattern runs all the way in. Dilating still grows and shrinks it." + EXT }
+        help: "Fill the pupil from the iris texture's centre instead of with a flat colour, for a drawn eye whose pattern runs all the way in. Dilating still grows and shrinks it." + EXT },
+      { key: 'irisDilation', type: 'bool', def: false, ext: true,
+        help: 'Dilate by resizing the iris instead of opening a pupil in it. The disc grows and shrinks whole, pattern and edge intact, with the sclera showing behind it. pupilMin and pupilMax then read as the smallest and largest the disc gets.' + EXT }
     ]
   },
   {

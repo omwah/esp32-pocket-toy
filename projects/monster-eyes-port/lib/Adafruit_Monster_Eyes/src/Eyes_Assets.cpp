@@ -673,6 +673,11 @@ void Adafruit_Monster_Eyes::applyConfigRoot(const void *variantPtr) {
   v = o["texturedPupil"];
   if (v.is<bool>() || v.is<int>())
     _settings.texturedPupil = v.as<bool>();
+  // Extension: dilate by resizing the iris instead of opening a pupil, for an
+  // eye whose iris is its pupil.
+  v = o["irisDilation"];
+  if (v.is<bool>() || v.is<int>())
+    _settings.irisDilation = v.as<bool>();
   v = o["slitPupilRounded"];
   if (v.is<bool>() || v.is<int>())
     _settings.slitPupilRounded = v.as<bool>();

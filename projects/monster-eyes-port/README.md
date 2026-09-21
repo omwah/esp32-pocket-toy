@@ -33,6 +33,11 @@ Wi-Fi, and overlays reach feature parity with the production application.
   follows the head and there is no head here, so the gaze stands in for it:
   looking down is the grazing posture. The value is the angle at full downward
   gaze.
+- Adds `irisDilation`, which dilates by resizing the iris rather than by
+  opening a pupil in it. For an eye whose iris IS its pupil -- a drawn disc of
+  pattern with no hole -- opening one distorts the pattern as it squeezes it
+  outward and swallows anything at its edge. Resizing keeps the disc whole and
+  shows the sclera behind it.
 - Adds three extensions for eyes that are drawn rather than grown:
   `texturedPupil` fills the pupil from the iris texture's centre, so a pattern
   that runs to the middle closes over it instead of being cut out by a flat
@@ -146,7 +151,10 @@ Three things can be done with an edit:
 - **Save as a new package** copies the package's bitmaps and sounds into a new
   one with this config, and switches to it. The original is untouched.
 
-**Revert to file** drops an unsaved edit and rebuilds from the drive.
+**Revert to file** drops an unsaved edit and rebuilds from the drive, and so
+does uploading a package over the one being edited -- the edit belongs to the
+config that was there a moment ago, and keeping it would make the upload look
+as though it had been ignored.
 
 Saving rewrites the file from the parsed document, so comments and formatting
 in the original `config.eye` are lost -- the simulator's Save As does the same.

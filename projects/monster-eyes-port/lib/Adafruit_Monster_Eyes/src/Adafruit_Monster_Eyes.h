@@ -53,6 +53,7 @@ struct EyesSettings {
   bool slitPupilHorizontal; ///< Lay the slit across the eye: deer, goat, horse
   bool slitPupilRounded;    ///< Blunt the slit's ends instead of pointing them
   bool texturedPupil;       ///< Fill the pupil from the iris texture's centre
+  bool irisDilation;        ///< Scale the iris disc instead of opening a pupil
   float gazeRange;          ///< Fraction of the reachable gaze the eye uses
   float coverage;      ///< Effective, possibly raised by finalize()
   float coverageRequested;   ///< What the sketch or config actually asked for
@@ -493,6 +494,29 @@ public:
    * @param on true to sample the texture, false for the flat pupil colour.
    */
   void setTexturedPupil(bool on) { _settings.texturedPupil = on; }
+
+  /**
+   * @brief Dilate by resizing the iris rather than by opening a pupil.
+   *
+   * Extension, not in upstream Monster Eyes. Dilation normally opens a hole in
+   * the middle of the iris and rescales what is left into the ring around it.
+   * For an eye whose iris IS its pupil -- a drawn disc of pattern with no hole
+   * in it -- that is the wrong motion twice over: the pattern distorts as it
+   * is squeezed outward, and anything at its edge, a ring most obviously, is
+   * swallowed as the hole grows past it.
+   *
+   * With this on the whole iris texture scales about the centre instead. The
+   * disc grows and shrinks with its pattern intact, edge and all, and what
+   * shows in the gap between the shrunken disc and the iris radius is the
+   * sclera's innermost row -- which is what would be there if the iris were
+   * simply smaller.
+   *
+   * pupilMin and pupilMax then read as the smallest and largest the disc gets,
+   * as fractions of irisRadius.
+   *
+   * @param on true to resize the iris, false for the usual pupil.
+   */
+  void setIrisDilation(bool on) { _settings.irisDilation = on; }
 
   /**
    * @brief How far the eye may look, as a fraction of what it could.

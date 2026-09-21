@@ -235,9 +235,13 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
                       "0 for a round pupil, -1 to derive it, or the slit "
                       "length in pixels.");
     changed |= floatRow(doc, "pupilMin", "pupilMin", now.pupilMin, 0.0f, 1.0f,
-                        "%.3f", "Smallest pupil as a fraction of the iris.");
+                        "%.3f",
+                        "Smallest pupil as a fraction of the iris, or the "
+                        "smallest the iris disc gets with irisDilation on.");
     changed |= floatRow(doc, "pupilMax", "pupilMax", now.pupilMax, 0.0f, 1.0f,
-                        "%.3f", "Largest pupil as a fraction of the iris.");
+                        "%.3f",
+                        "Largest pupil as a fraction of the iris, or the "
+                        "largest the iris disc gets with irisDilation on.");
     changed |= boolRow(doc, "slitPupilHorizontal*", "slitPupilHorizontal",
                        now.slitPupilHorizontal,
                        "Lay the slit on its side." EXTENSION_NOTE);
@@ -250,6 +254,12 @@ PanelResult drawConfigPanel(ConfigDocument &doc, const EyesSettings &defaults,
                        "of with a flat colour, for a drawn eye whose pattern "
                        "runs all the way in. Dilating still grows and shrinks "
                        "it." EXTENSION_NOTE);
+    changed |= boolRow(doc, "irisDilation*", "irisDilation", now.irisDilation,
+                       "Dilate by resizing the iris instead of opening a pupil "
+                       "in it. The disc grows and shrinks whole, pattern and "
+                       "edge intact, with the sclera showing behind it. "
+                       "pupilMin and pupilMax then read as the smallest and "
+                       "largest the disc gets." EXTENSION_NOTE);
   }
 
   if (ImGui::CollapsingHeader("Display", ImGuiTreeNodeFlags_DefaultOpen)) {

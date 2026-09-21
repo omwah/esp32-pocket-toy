@@ -61,6 +61,7 @@ void Adafruit_Monster_Eyes::applyDefaults(void) {
   _settings.slitPupilHorizontal = false; // Upright, as a cat's is
   _settings.slitPupilRounded = false;    // Pointed, as a cat's is
   _settings.texturedPupil = false;       // A flat pupil, as upstream has
+  _settings.irisDilation = false;        // Which opens and closes, as upstream
   _settings.gazeRange = 1.0f;            // All the travel the geometry allows
   _settings.coverage = 0.6f;
   _settings.coverageRequested = _settings.coverage;
@@ -1124,6 +1125,18 @@ void Adafruit_Monster_Eyes::renderEye(uint8_t e) {
   const uint8_t *flowPhase = _flowPhase;
   const uint16_t pupilColor = out16(_settings.pupilColor);
   const bool texturedPupil = _settings.texturedPupil;
+  // Iris dilation: the whole texture scales about the centre, so work out
+  // where its rim falls this frame. pupilFactor is the iris fraction, so the
+  // disc is what is left of it.
+  const bool irisDilation = _settings.irisDilation && iris && irisH > 0;
+  const float discSpan = 1.0f - E.pupilFactor;
+  int discCut = (int)((1.0f - discSpan) * 127.0f + 0.5f);
+  if (discCut < 0)
+    discCut = 0;
+  else if (discCut > 126)
+    discCut = 126;
+  // Rows per unit of depth inside the disc, Q15.
+  const int discScale = (int)(((uint32_t)irisH << 15) / (uint32_t)(127 - discCut));
   const uint16_t backColor = out16(_settings.backColor);
   const uint16_t eyelidColor = out16(_settings.eyelidColor);
   const uint16_t irisMirror = _variant[e].irisMirror;
@@ -1280,6 +1293,21 @@ void Adafruit_Monster_Eyes::renderEye(uint8_t e) {
         const int tx = (a * scleraW) >> 10;
         const int ty = (dist * scleraH) >> 7;
         *dst = sclera[ty * scleraW + tx];
+      } else if (dist > -128 && irisDilation) { // Iris, sized by the dilation
+        // Depth into the iris, 0 at its rim and 127 at the centre. The disc
+        // occupies the inner part of that; outside it the sclera's innermost
+        // row shows, as it would if the iris were simply smaller.
+        const int depth = (-dist) - 1;
+        const int a = ((angle + irisAngle) & 1023) ^ irisMirror;
+        if (depth < discCut) {
+          const int sa = ((angle + scleraAngle) & 1023) ^ scleraMirror;
+          *dst = sclera[(scleraH - 1) * scleraW + ((sa * scleraW) >> 10)];
+        } else {
+          int row = (int)(((uint32_t)(depth - discCut) * discScale) >> 15);
+          if (row >= irisH)
+            row = irisH - 1;
+          *dst = iris[row * irisW + ((a * irisW) >> 10)];
+        }
       } else if (dist > -128) { // Iris or pupil
         int ty = (int)(((uint32_t)(-dist * iPupilFactor)) >> 15);
         if (ty >= irisH && !texturedPupil) {

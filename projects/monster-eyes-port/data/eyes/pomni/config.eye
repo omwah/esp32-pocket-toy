@@ -16,12 +16,15 @@
   // radially, which is what makes the pinwheel grow and shrink inside the
   // white the way it does on the show.
   "slitPupilRadius": 0,
-  // The pinwheel IS the pupil, so the pupil is drawn from the iris texture
-  // rather than as a flat disc: without this a black blot opens in the middle
-  // of the wedges as it dilates.
-  "texturedPupil": true,
-  "pupilMin": 0.10,
-  "pupilMax": 0.42,
+  // The pinwheel IS the pupil, so dilation resizes the iris instead of opening
+  // a hole in it: the disc grows and shrinks whole, ring and all, and the
+  // white of the eye fills in behind it. Opening a pupil instead squeezed the
+  // wedges outward into a band and swallowed their ring.
+  "irisDilation": true,
+  // Which makes these the smallest and largest the disc gets, as fractions of
+  // irisRadius, rather than the pupil's share of the iris.
+  "pupilMin": 0.78,
+  "pupilMax": 1.00,
 
   // The panel background and the lids are her face, so a blink reads as skin
   // coming down over the eye rather than as a hole in the screen.

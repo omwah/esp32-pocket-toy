@@ -170,7 +170,14 @@ void WebControl::startServer() {
     _server.on("/api/packages/upload/commit", HTTP_POST, [this] {
         String error, id = _storage.uploadId(), token = _server.arg("token");
         bool ok = _storage.commit(token, error);
-        if (ok) ok = _eyes.reloadPackages(id);
+        if (ok) {
+            // An unsaved edit belongs to the config that was here a moment
+            // ago. Keeping it would make the upload look ignored: the file on
+            // the drive would be the new one and the eyes would still be
+            // running the old one with the edit on top.
+            _eyes.clearLiveConfig();
+            ok = _eyes.reloadPackages(id);
+        }
         _server.send(ok ? 201 : 400, "text/plain", ok ? "" : error);
     });
     _server.on("/api/packages/download", HTTP_GET, [this] {
