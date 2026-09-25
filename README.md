@@ -9,6 +9,7 @@ diagnostics.
 - [`projects/space-battle/`](projects/space-battle/) — continuous fleet-engagement screensaver
 - [`projects/uncanny-eyes/`](projects/uncanny-eyes/) — asset-based animated eyes with touch and Wi-Fi controls
 - [`projects/power-diagnostics/`](projects/power-diagnostics/) — temporary external-power signal probe
+- [`projects/usb-hid-tester/`](projects/usb-hid-tester/) — USB keyboard tester with an impatient hippo image
 - [`projects/monster-eyes-port/`](projects/monster-eyes-port/) — animated eyes: twenty-six swappable eye packages, touch and web control, desktop preview
 
 ## Hardware bought for this project
